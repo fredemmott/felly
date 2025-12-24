@@ -5,7 +5,7 @@
 #include <mutex>
 #include <print>
 
-namespace felly {
+namespace felly::inline guarded_data_types {
 
 template<class T>
 struct unique_guarded_data_lock {

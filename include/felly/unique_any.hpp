@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <utility>
 
-namespace felly {
+namespace felly::inline unique_any_types {
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *
  * For example:

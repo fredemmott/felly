@@ -52,7 +52,7 @@ class basic_scope_exit final {
 };
 }// namespace felly::detail
 
-namespace felly {
+namespace felly::inline scope_exit_types {
 template <class T = std::function<void()>>
 using scope_exit
   = detail::basic_scope_exit<detail::basic_scope_exit_execution_policy::Always, T>;

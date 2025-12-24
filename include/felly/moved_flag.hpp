@@ -4,7 +4,7 @@
 
 #include <utility>
 
-namespace felly {
+namespace felly::inline moved_flag_types {
 
 struct moved_flag {
   constexpr moved_flag() = default;
