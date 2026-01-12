@@ -31,6 +31,7 @@ class basic_scope_exit final {
   std::conditional_t<TWhen != Always, int, empty> mInitialUncaught {};
 
   std::remove_cvref_t<TCallback> mCallback;
+  bool mOwned {true};
 
  public:
   constexpr basic_scope_exit(TCallback&& f)
@@ -40,8 +41,11 @@ class basic_scope_exit final {
     }
   }
 
-  constexpr ~basic_scope_exit() noexcept
-  {
+  constexpr ~basic_scope_exit() noexcept {
+    if (!mOwned) {
+      return;
+    }
+
     if constexpr (TWhen == Always) {
       std::invoke(mCallback);
     } else if constexpr (TWhen == OnFailure) {
@@ -57,20 +61,31 @@ class basic_scope_exit final {
 
   basic_scope_exit() = delete;
   basic_scope_exit(const basic_scope_exit&) = delete;
-  basic_scope_exit(basic_scope_exit&&) noexcept = delete;
   basic_scope_exit& operator=(const basic_scope_exit&) = delete;
+  basic_scope_exit(basic_scope_exit&& other) noexcept
+    : mInitialUncaught(other.mInitialUncaught),
+      mCallback(std::move(other.mCallback)),
+      mOwned(std::exchange(other.mOwned, false)) {
+  }
+
+  /// If we currently own a callback, invoking it could be surprising here; it
+  /// could also cause noexcept issues
   basic_scope_exit& operator=(basic_scope_exit&&) noexcept = delete;
+
+  void release() noexcept {
+    mOwned = false;
+  }
 };
 }// namespace felly::detail
 
 namespace felly::inline scope_exit_types {
 template <class T = std::function<void()>>
-using scope_exit
-  = detail::basic_scope_exit<detail::basic_scope_exit_execution_policy::Always, T>;
+using scope_exit = detail::
+  basic_scope_exit<detail::basic_scope_exit_execution_policy::Always, T>;
 template <class T = std::function<void()>>
-using scope_fail = 
-  detail::basic_scope_exit<detail::basic_scope_exit_execution_policy::OnFailure, T>;
+using scope_fail = detail::
+  basic_scope_exit<detail::basic_scope_exit_execution_policy::OnFailure, T>;
 template <class T = std::function<void()>>
-using scope_success = 
-  detail::basic_scope_exit<detail::basic_scope_exit_execution_policy::OnSuccess, T>;
-}// namespace felly
+using scope_success = detail::
+  basic_scope_exit<detail::basic_scope_exit_execution_policy::OnSuccess, T>;
+}// namespace felly::inline scope_exit_types
