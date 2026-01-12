@@ -16,3 +16,8 @@ target_include_directories(
   INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
 )
+
+include(CTest)
+if (BUILD_TESTING)
+  add_subdirectory(tests)
+endif ()
