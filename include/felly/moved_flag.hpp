@@ -8,8 +8,9 @@ namespace felly::inline moved_flag_types {
 
 struct moved_flag {
   constexpr moved_flag() = default;
-  moved_flag(const moved_flag&) = delete;
-  moved_flag& operator=(const moved_flag&) = delete;
+
+  constexpr moved_flag(const moved_flag&) = default;
+  constexpr moved_flag& operator=(const moved_flag&) = default;
 
   constexpr moved_flag(moved_flag&& other) noexcept {
     mMoved = std::exchange(other.mMoved, true);
