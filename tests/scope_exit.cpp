@@ -19,118 +19,118 @@ TEST_CASE("no exception count for scope_exit") {
 
 TEST_CASE("scope_exit") {
   SECTION("on normal scope exit") {
-    bool flag = false;
+    bool invoked = false;
     {
-      const felly::scope_exit guard {[&flag] { flag = true; }};
-      CHECK_FALSE(flag);
+      const felly::scope_exit guard {[&] { invoked = true; }};
+      CHECK_FALSE(invoked);
     }
-    CHECK(flag);
+    CHECK(invoked);
   }
 
   SECTION("on exception") {
-    bool flag = false;
+    bool invoked = false;
     try {
-      const felly::scope_exit guard {[&flag] { flag = true; }};
-      CHECK_FALSE(flag);
+      const felly::scope_exit guard {[&] { invoked = true; }};
+      CHECK_FALSE(invoked);
       throw test_exception {};
     } catch (const test_exception&) {
-      CHECK(flag);
+      CHECK(invoked);
     }
-    CHECK(flag);
+    CHECK(invoked);
   }
 }
 
 TEST_CASE("scope_success") {
   SECTION("on normal scope exit") {
-    bool flag = false;
+    bool invoked = false;
     {
-      const felly::scope_success guard {[&flag] { flag = true; }};
-      CHECK_FALSE(flag);
+      const felly::scope_success guard {[&] { invoked = true; }};
+      CHECK_FALSE(invoked);
     }
-    CHECK(flag);
+    CHECK(invoked);
   }
 
   SECTION("on exception") {
-    bool flag = false;
+    bool invoked = false;
     try {
-      const felly::scope_success guard {[&flag] { flag = true; }};
-      CHECK_FALSE(flag);
+      const felly::scope_success guard {[&] { invoked = true; }};
+      CHECK_FALSE(invoked);
       throw test_exception {};
     } catch (const test_exception&) {
-      CHECK_FALSE(flag);
+      CHECK_FALSE(invoked);
     }
-    CHECK_FALSE(flag);
+    CHECK_FALSE(invoked);
   }
 
   SECTION("in successful exception handler") {
-    bool flag = false;
+    bool invoked = false;
     try {
       throw test_exception();
     } catch (const test_exception&) {
-      const felly::scope_success guard {[&flag] { flag = true; }};
+      const felly::scope_success guard {[&] { invoked = true; }};
     }
-    CHECK(flag);
+    CHECK(invoked);
   }
 
   SECTION("in re-throwing exception handler") {
-    bool flag = false;
+    bool invoked = false;
     try {
       try {
         throw test_exception();
       } catch (const test_exception&) {
-        const felly::scope_success guard {[&flag] { flag = true; }};
+        const felly::scope_success guard {[&] { invoked = true; }};
         throw;
       }
     } catch (const test_exception&) {
     }
-    CHECK_FALSE(flag);
+    CHECK_FALSE(invoked);
   }
 }
 
 TEST_CASE("scope_fail") {
   SECTION("on normal scope exit") {
-    bool flag = false;
+    bool invoked = false;
     {
-      const felly::scope_fail guard {[&flag] { flag = true; }};
-      CHECK_FALSE(flag);
+      const felly::scope_fail guard {[&] { invoked = true; }};
+      CHECK_FALSE(invoked);
     }
-    CHECK_FALSE(flag);
+    CHECK_FALSE(invoked);
   }
 
   SECTION("on exception") {
-    bool flag = false;
+    bool invoked = false;
     try {
-      const felly::scope_fail guard {[&flag] { flag = true; }};
-      CHECK_FALSE(flag);
+      const felly::scope_fail guard {[&] { invoked = true; }};
+      CHECK_FALSE(invoked);
       throw test_exception {};
     } catch (const test_exception&) {
-      CHECK(flag);
+      CHECK(invoked);
     }
-    CHECK(flag);
+    CHECK(invoked);
   }
 
   SECTION("in successful exception handler") {
-    bool flag = false;
+    bool invoked = false;
     try {
       throw test_exception();
     } catch (const test_exception&) {
-      const felly::scope_fail guard {[&flag] { flag = true; }};
+      const felly::scope_fail guard {[&] { invoked = true; }};
     }
-    CHECK_FALSE(flag);
+    CHECK_FALSE(invoked);
   }
 
   SECTION("in re-throwing exception handler") {
-    bool flag = false;
+    bool invoked = false;
     try {
       try {
         throw test_exception();
       } catch (const test_exception&) {
-        const felly::scope_fail guard {[&flag] { flag = true; }};
-        CHECK_FALSE(flag);
+        const felly::scope_fail guard {[&] { invoked = true; }};
+        CHECK_FALSE(invoked);
         throw;
       }
     } catch (const test_exception&) {
     }
-    CHECK(flag);
+    CHECK(invoked);
   }
 }
