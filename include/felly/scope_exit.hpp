@@ -5,8 +5,11 @@
 #include <concepts>
 #include <exception>
 #include <functional>
+#include <type_traits>
 
 namespace felly::detail {
+
+struct empty {};
 
 enum class basic_scope_exit_execution_policy {
   Always,
@@ -19,14 +22,22 @@ enum class basic_scope_exit_execution_policy {
 template <basic_scope_exit_execution_policy TWhen, std::invocable<> TCallback>
 class basic_scope_exit final {
  private:
-  std::remove_cvref_t<TCallback> mCallback;
-  int mInitialUncaught = std::uncaught_exceptions();
-
   using enum basic_scope_exit_execution_policy;
+#ifdef _MSC_VER
+  [[msvc::no_unique_address]]
+#else
+  [[no_unique_address]]
+#endif
+  std::conditional_t<TWhen != Always, int, empty> mInitialUncaught {};
+
+  std::remove_cvref_t<TCallback> mCallback;
 
  public:
   constexpr basic_scope_exit(TCallback&& f)
     : mCallback(std::forward<TCallback>(f)) {
+    if constexpr (TWhen != Always) {
+      mInitialUncaught = std::uncaught_exceptions();
+    }
   }
 
   constexpr ~basic_scope_exit() noexcept
