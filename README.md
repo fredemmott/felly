@@ -10,6 +10,7 @@ My current goal is to reduce duplication between my own projects; it is not suit
 
 - `felly::guarded_data`: A wrapper for arbitrary data that is guarded by an RAII lock; similar to Rust's mutex
 - `felly::moved_flag`: A marker for whether or not an object has been moved. Useful for destructors, e.g. `if (moved) return;`
+- `felly::overload`: The trivial implementation of the overload pattern, for invoking `std::visit` on an `std::variant` with exhaustiveness checks
 - `felly::scope_exit`, `scope_failure`, `scope_success`: RAII helpers for executing code at scope exit unconditionally, only when an exception is thrown, or when an exception is *not* thrown. Inspired by TS v3
 - `felly::unique_any`: A `unique_ptr`-like class, designed to hold arbitrary types with a 'free'-like function. It is also useful for pointers where a non-`nullptr` 'empty' value is used, e.g. `INVALID_HANDLE_VALUE` or `(T*)-1`
 
