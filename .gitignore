@@ -1,0 +1,5 @@
+*~
+*.orig
+.idea/
+cmake-build-*/
+build*/
