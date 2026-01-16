@@ -7,6 +7,13 @@ add_executable(
   scope_exit.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain felly)
+if (MSVC)
+  target_compile_options(
+    tests
+    PRIVATE
+    /W4 /WX
+  )
+endif ()
 
 include(CTest)
 include(Catch)
