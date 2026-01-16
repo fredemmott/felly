@@ -8,6 +8,7 @@ add_library(
   INTERFACE
   include/felly/guarded_data.hpp
   include/felly/moved_flag.hpp
+  include/felly/numeric_cast.hpp
   include/felly/overload.hpp
   include/felly/scope_exit.hpp
   include/felly/unique_any.hpp

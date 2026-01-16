@@ -5,6 +5,7 @@ add_executable(
   moved_flag.cpp
   overload.cpp
   scope_exit.cpp
+  numeric_cast.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain felly)
 if (MSVC)
