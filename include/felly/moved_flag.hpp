@@ -29,4 +29,4 @@ struct moved_flag {
   bool mMoved = false;
 };
 
-}// namespace felly
+}// namespace felly::inline moved_flag_types
