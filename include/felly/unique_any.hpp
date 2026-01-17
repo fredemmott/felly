@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include "moved_flag.hpp"
-
 #include <compare>
 #include <concepts>
 #include <functional>
+#include <optional>
 #include <stdexcept>
 #include <utility>
 
@@ -31,21 +30,30 @@ struct unique_any {
   unique_any(const unique_any&) = delete;
   unique_any& operator=(const unique_any&) = delete;
 
-  unique_any(T value) : mValue(value) {}
+  unique_any(T value) : mValue(std::move(value)) {}
 
-  constexpr unique_any(unique_any&& other) = default;
-  constexpr unique_any& operator=(unique_any&& other) noexcept = default;
+  constexpr unique_any(unique_any&& other) noexcept {
+    *this = std::move(other);
+  }
+
+  constexpr unique_any& operator=(unique_any&& other) noexcept {
+    if (mValue) {
+      std::invoke(TDeleter, *mValue);
+    }
+    mValue = std::exchange(other.mValue, std::nullopt);
+    return *this;
+  }
 
   ~unique_any() {
     if (*this) {
-      std::invoke(TDeleter, mValue);
+      std::invoke(TDeleter, *mValue);
     }
   }
 
   template <class Self>
   [[nodiscard]]
   constexpr decltype(auto) get(this Self&& self) {
-    if (self.mMoved) {
+    if (!self.mValue) {
       throw std::logic_error("Can't access a moved value");
     }
     return std::forward_like<Self>(self.mValue);
@@ -53,19 +61,19 @@ struct unique_any {
 
   template <class Self>
   constexpr decltype(auto) operator->(this Self&& self) {
-    if (self.mMoved) {
+    if (!self.mValue) {
       throw std::logic_error("Can't access a moved value");
     }
 
     if constexpr (std::is_pointer_v<T>) {
-      return std::forward_like<Self>(self.mValue);
+      return std::forward_like<Self>(*self.mValue);
     } else {
-      return std::forward_like<Self>(&self.mValue);
+      return std::forward_like<Self>(&*self.mValue);
     }
   }
 
   constexpr operator bool() const noexcept {
-    return (!mMoved) && TPredicate(mValue);
+    return (mValue) && TPredicate(*mValue);
   }
 
   [[nodiscard]]
@@ -73,19 +81,10 @@ struct unique_any {
     const unique_any& lhs,
     const unique_any& rhs) noexcept
     requires std::three_way_comparable_with<T, T, std::strong_ordering>
-  {
-    if (const auto cmp = lhs.mMoved <=> rhs.mMoved; cmp != 0) return cmp;
-
-    return lhs.mValue <=> rhs.mValue;
-  }
-
-  [[nodiscard]]
-  friend constexpr bool operator==(const unique_any&, const unique_any&) =
-    default;
+  = default;
 
  private:
-  moved_flag mMoved;
-  T mValue {};
+  std::optional<T> mValue;
 };
 
 }// namespace felly::inline unique_any_types
