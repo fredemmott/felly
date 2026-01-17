@@ -72,7 +72,7 @@ struct unique_any {
     if (!self.mValue) {
       throw std::logic_error("Can't access a moved value");
     }
-    return std::forward_like<Self>(self.mValue);
+    return std::forward_like<Self>(*self.mValue);
   }
 
   template <class Self>
