@@ -11,8 +11,9 @@
 
 namespace felly::inline unique_any_types {
 
+// Storage for any type using std::optional
 template <class T>
-class unique_any_storage {
+class unique_any_optional_storage {
   std::optional<T> storage;
 
  public:
@@ -32,19 +33,28 @@ class unique_any_storage {
   }
 
   friend constexpr auto operator<=>(
-    const unique_any_storage& lhs,
-    const unique_any_storage& rhs) noexcept
+    const unique_any_optional_storage& lhs,
+    const unique_any_optional_storage& rhs) noexcept
     requires std::three_way_comparable<T>
   {
     return lhs.storage <=> rhs.storage;
   }
 
-  constexpr bool operator==(const unique_any_storage&) const noexcept = default;
+  constexpr bool operator==(const unique_any_optional_storage&) const noexcept =
+    default;
 };
 
+/** Storage for any pointer, assuming that `nullptr` is invalid.
+ *
+ * If additional values are invalid, this should be handled by `unique_any`'s
+ * `TPredicate`, and `unique_any` will take responsibility for handling it.
+ *
+ * The nullptr is only used as an space-saving equivalent to the
+ * `std::optional`'s nullopt
+ */
 template <class T>
   requires std::is_pointer_v<T>
-class unique_any_storage<T> {
+class unique_any_pointer_storage {
   T storage {};
 
  public:
@@ -56,9 +66,23 @@ class unique_any_storage<T> {
   constexpr void reset() noexcept { storage = nullptr; }
   constexpr void emplace(const T value) noexcept { storage = value; }
 
-  constexpr auto operator<=>(const unique_any_storage&) const noexcept =
+  friend constexpr auto operator<=>(
+    const unique_any_pointer_storage&,
+    const unique_any_pointer_storage&) noexcept = default;
+  constexpr bool operator==(const unique_any_pointer_storage&) const noexcept =
     default;
 };
+
+/** Specializable-class to for an simplified `std::optional`-like container
+ * for `unique_any` to use to store a T.
+ *
+ * You may specialize this for your own types.
+ */
+template <class T>
+struct unique_any_storage : unique_any_optional_storage<T> {};
+template <class T>
+  requires std::is_pointer_v<T>
+struct unique_any_storage<T> : unique_any_pointer_storage<T> {};
 
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *
