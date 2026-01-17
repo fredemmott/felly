@@ -7,7 +7,20 @@
 #include <functional>
 #include <optional>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
+
+namespace felly_detail {
+
+template <class From, class To>
+concept const_promotion_to = (!std::same_as<To, From>)
+  && std::same_as<To,
+                  std::conditional_t<
+                    std::is_pointer_v<From>,
+                    const std::remove_pointer_t<From>*,
+                    const std::remove_pointer_t<From>>>;
+
+}
 
 namespace felly::inline unique_any_types {
 
@@ -122,6 +135,16 @@ struct unique_any {
     *this = std::move(other);
   }
 
+  template <
+    felly_detail::const_promotion_to<T> U,
+    auto UDeleter,
+    auto UPredicate>
+  constexpr unique_any(unique_any<U, UDeleter, UPredicate>&& other) noexcept {
+    if (other) {
+      storage.emplace(other.disown());
+    }
+  }
+
   constexpr void reset() noexcept {
     if (has_value()) {
       std::invoke(TDeleter, storage.value());
@@ -151,6 +174,21 @@ struct unique_any {
 
     reset();
     storage = std::exchange(other.storage, storage_type {});
+    return *this;
+  }
+
+  template <
+    felly_detail::const_promotion_to<T> U,
+    auto UDeleter,
+    auto UPredicate>
+  constexpr unique_any& operator=(
+    unique_any<U, UDeleter, UPredicate>&& other) noexcept {
+    static_assert(!std::same_as<T, U>);
+
+    reset();
+    if (other) {
+      storage.emplace(other.disown());
+    }
     return *this;
   }
 

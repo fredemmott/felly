@@ -361,6 +361,59 @@ TEST_CASE("unique_any - -1 pointers") {
   }
 }
 
+TEST_CASE("unique_any - const pointers") {
+  using mutable_test_type = felly::unique_any<
+    WithTrackedDestructor*,
+    std::default_delete<const WithTrackedDestructor> {}>;
+  using const_test_type = felly::unique_any<
+    const WithTrackedDestructor*,
+    std::default_delete<const WithTrackedDestructor> {}>;
+
+  SECTION("basic operation") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    {
+      const_test_type source {new const WithTrackedDestructor(value)};
+      STATIC_CHECK_FALSE(std::is_assignable_v<decltype((source->value)), int>);
+      auto dest = std::move(source);
+      CHECK(dest->value == value);
+      STATIC_CHECK_FALSE(std::is_assignable_v<decltype((dest->value)), int>);
+
+      // Just to confirm the checks above what we're trying to check
+      mutable_test_type mutable_source {new WithTrackedDestructor(value)};
+      STATIC_CHECK(
+        std::is_assignable_v<decltype((mutable_source->value)), int>);
+    }
+  }
+
+  SECTION("move-construct from non-const") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    {
+      mutable_test_type source {new WithTrackedDestructor(value)};
+      const_test_type dest = std::move(source);
+      CHECK(Tracker::call_count == 0);
+      CHECK(dest->value == value);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+
+  SECTION("move-assign from non-const") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    {
+      mutable_test_type source {new WithTrackedDestructor(value)};
+      const_test_type dest {nullptr};
+      dest = std::move(source);
+      CHECK(Tracker::call_count == 0);
+      CHECK(dest->value == value);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+}
+
 TEST_CASE("unique_any - aggregates") {
   struct value_type : felly::non_copyable {
     constexpr value_type() = default;
