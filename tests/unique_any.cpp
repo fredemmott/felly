@@ -29,11 +29,29 @@ constexpr bool FDLikeIntIsValid(const int fd) {
   return fd >= 0;
 }
 
-using unique_fd_like =
-  felly::unique_any<int, FDLikeIntDeleter, &FDLikeIntIsValid>;
+struct Aggregate {
+  int value {};
+};
+
+struct WithTrackedDestructor {
+  int value {};
+  ~WithTrackedDestructor() {
+    Tracker::call_count++;
+    Tracker::last_value = value;
+  }
+};
+
+[[nodiscard]]
+constexpr bool Win32HandleIsValid(const void* const handle) {
+  return handle && (std::bit_cast<intptr_t>(handle) != -1);
+}
+
 }// namespace
 
-TEST_CASE("unique_any - basic behavior") {
+TEST_CASE("unique_any - basic values") {
+  using unique_fd_like =
+    felly::unique_any<int, FDLikeIntDeleter, &FDLikeIntIsValid>;
+
   SECTION("static checks") {
     STATIC_CHECK(std::swappable<unique_fd_like>);
     STATIC_CHECK(std::movable<unique_fd_like>);
@@ -179,5 +197,80 @@ TEST_CASE("unique_any - basic behavior") {
     CHECK(unique_fd_like {0} == unique_fd_like {0});
     CHECK(unique_fd_like {-1} == unique_fd_like {-1});
     CHECK_FALSE(unique_fd_like {0} == unique_fd_like {1});
+  }
+}
+
+TEST_CASE("unique_any - standard pointers") {
+  using test_type = felly::unique_any<
+    WithTrackedDestructor*,
+    std::default_delete<WithTrackedDestructor> {}>;
+
+  SECTION("is-valid") {
+    CHECK_FALSE(test_type {nullptr});
+    CHECK(test_type {new WithTrackedDestructor()});
+  }
+
+  SECTION("destructor called") {
+    Tracker::reset();
+    std::ignore = test_type {nullptr};
+    CHECK(Tracker::call_count == 0);
+    constexpr auto value = __LINE__;
+    std::ignore = test_type {new WithTrackedDestructor(value)};
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+
+  SECTION("comparison with nullptr") {
+    Tracker::reset();
+    CHECK(test_type {nullptr} == nullptr);
+    CHECK(test_type {new WithTrackedDestructor()} != nullptr);
+  }
+}
+
+TEST_CASE("unique_any - -1 pointers") {
+  using test_type = felly::unique_any<
+    Aggregate*,
+    [](const Aggregate* p) {
+      Tracker::call_count++;
+      Tracker::last_value = p->value;
+      delete p;
+    },
+    &Win32HandleIsValid>;
+  // negative pointers can't be constexpr, which is why we don't take an
+  // invalid value template parameter
+  const auto Invalid = reinterpret_cast<Aggregate*>(-1);
+
+  SECTION("is-valid") {
+    CHECK_FALSE(test_type {Invalid});
+    CHECK_FALSE(test_type {nullptr});
+    CHECK(test_type {new Aggregate()});
+  }
+
+  SECTION("comparison with nullptr") {
+    CHECK(test_type {Invalid} == nullptr);
+    CHECK(test_type {nullptr} == Invalid);
+    CHECK(test_type {nullptr} == test_type {Invalid});
+    CHECK(test_type {nullptr} == nullptr);
+    CHECK(test_type {new Aggregate()} != nullptr);
+    CHECK(test_type {new Aggregate()} != test_type {Invalid});
+  }
+
+  SECTION("valid is deleted") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    std::ignore = test_type {new Aggregate {value}};
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+  SECTION("invalid is not deleted") {
+    Tracker::reset();
+    std::ignore = test_type {Invalid};
+    CHECK(Tracker::call_count == 0);
+  }
+
+  SECTION("nullptr is not deleted") {
+    Tracker::reset();
+    std::ignore = test_type {nullptr};
+    CHECK(Tracker::call_count == 0);
   }
 }
