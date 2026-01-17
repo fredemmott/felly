@@ -8,6 +8,7 @@ add_executable(
   numeric_cast.cpp
   overload.cpp
   scope_exit.cpp
+  unique_any.cpp
   version.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain felly)
