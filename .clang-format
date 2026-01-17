@@ -21,6 +21,7 @@ DerivePointerAlignment: false
 FixNamespaceComments: true
 IncludeBlocks: Preserve
 IndentWidth: 2
+InsertNewlineAtEOF: true
 LineEnding: 'LF'
 MaxEmptyLinesToKeep: 1
 PointerAlignment: Left
@@ -34,4 +35,3 @@ Standard: c++20
 TabWidth: 2
 UseCRLF: false
 UseTab: Never
-
