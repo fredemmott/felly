@@ -5,8 +5,10 @@
 
 #include <felly/moved_flag.hpp>
 
+using felly::moved_flag;
+
 TEST_CASE("move construction") {
-  felly::moved_flag a;
+  moved_flag a;
   CHECK_FALSE(a);
   const auto b = std::move(a);
   CHECK(a);
@@ -14,7 +16,7 @@ TEST_CASE("move construction") {
 }
 
 TEST_CASE("double-move") {
-  felly::moved_flag a;
+  moved_flag a;
   auto b = std::move(a);
   auto c = std::move(a);
   CHECK(a);
@@ -23,7 +25,7 @@ TEST_CASE("double-move") {
 }
 
 TEST_CASE("chained move") {
-  felly::moved_flag a;
+  moved_flag a;
   auto b = std::move(a);
   auto c = std::move(b);
   CHECK(a);
@@ -32,7 +34,7 @@ TEST_CASE("chained move") {
 }
 
 TEST_CASE("copy-then-move construction") {
-  felly::moved_flag a;
+  moved_flag a;
   auto b = a;
   CHECK_FALSE(a);
   CHECK_FALSE(b);
@@ -46,7 +48,7 @@ TEST_CASE("copy-then-move construction") {
 }
 
 TEST_CASE("move-then-copy construction") {
-  felly::moved_flag moved_from;
+  moved_flag moved_from;
   auto moved_to = std::move(moved_from);
   auto moved_from_copy = moved_from;
   auto moved_to_copy = moved_to;
@@ -57,7 +59,7 @@ TEST_CASE("move-then-copy construction") {
 }
 
 TEST_CASE("swap") {
-  felly::moved_flag a;
+  moved_flag a;
   auto b = std::move(a);
   CHECK(a);
   CHECK_FALSE(b);
@@ -67,11 +69,10 @@ TEST_CASE("swap") {
 }
 
 TEST_CASE("assignment") {
-
   SECTION("move") {
-    felly::moved_flag a;
-    felly::moved_flag b;
-    [[maybe_unused]] auto ignored  = std::move(b);
+    moved_flag a;
+    moved_flag b;
+    [[maybe_unused]] auto ignored = std::move(b);
     CHECK_FALSE(a);
     CHECK(b);
     b = std::move(a);
@@ -80,8 +81,8 @@ TEST_CASE("assignment") {
   }
 
   SECTION("copy") {
-    felly::moved_flag a;
-    felly::moved_flag b;
+    moved_flag a;
+    moved_flag b;
     CHECK_FALSE(a);
     CHECK_FALSE(b);
     b = a;
@@ -98,4 +99,14 @@ TEST_CASE("assignment") {
     CHECK(a);
     CHECK(b);
   }
+}
+
+TEST_CASE("comparable") {
+  STATIC_CHECK(std::totally_ordered<moved_flag>);
+  struct foo {
+    int value {};
+    moved_flag moved {};
+    constexpr auto operator<=>(const foo&) const noexcept = default;
+  };
+  STATIC_CHECK(std::totally_ordered<foo>);
 }
