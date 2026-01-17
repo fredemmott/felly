@@ -167,4 +167,10 @@ TEST_CASE("unique_any - basic behavior") {
     CHECK(Tracker::call_count == 0);
     CHECK(u1.get() == v2);
   }
+
+  SECTION("equality") {
+    CHECK(unique_fd_like {0} == unique_fd_like {0});
+    CHECK(unique_fd_like {-1} == unique_fd_like {-1});
+    CHECK_FALSE(unique_fd_like {0} == unique_fd_like {1});
+  }
 }

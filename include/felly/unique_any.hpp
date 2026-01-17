@@ -87,6 +87,16 @@ struct unique_any {
     requires std::three_way_comparable_with<T, T, std::strong_ordering>
   = default;
 
+  [[nodiscard]]
+  constexpr bool operator==(const unique_any&) const noexcept = default;
+
+  [[nodiscard]]
+  constexpr bool operator==(const T& other) const noexcept
+    requires std::equality_comparable<T>
+  {
+    return mValue && (*mValue == other);
+  }
+
  private:
   std::optional<T> mValue;
 };
