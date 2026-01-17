@@ -122,7 +122,7 @@ struct unique_any {
   template <class Self>
   [[nodiscard]]
   constexpr decltype(auto) get(this Self&& self) {
-    if (!self.storage.has_value()) {
+    if (!self) [[unlikely]] {
       throw std::logic_error("Can't access a moved or invalid value");
     }
     return std::forward_like<Self>(self.storage.value());
@@ -130,7 +130,7 @@ struct unique_any {
 
   template <class Self>
   constexpr decltype(auto) operator->(this Self&& self) {
-    if (!self.storage) {
+    if (!self) [[unlikely]] {
       throw std::logic_error("Can't access a moved or invalid value");
     }
 
