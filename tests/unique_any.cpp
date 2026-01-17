@@ -3,9 +3,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_exception.hpp>
-#include <felly/unique_any.hpp>
 
 #include <optional>
+
+#include "felly/non_copyable.hpp"
+#include "felly/unique_any.hpp"
 
 namespace {
 
@@ -272,5 +274,62 @@ TEST_CASE("unique_any - -1 pointers") {
     Tracker::reset();
     std::ignore = test_type {nullptr};
     CHECK(Tracker::call_count == 0);
+  }
+}
+
+TEST_CASE("non-copyable values") {
+  struct value_type : felly::non_copyable {
+    constexpr value_type() = default;
+    constexpr explicit value_type(const int value) : value {value} {}
+
+    int value {};
+    constexpr operator bool() const noexcept { return value != 0; }
+    constexpr bool operator==(const value_type&) const noexcept = default;
+    constexpr bool operator==(const int other) const noexcept {
+      return value == other;
+    }
+  };
+
+  using test_type = felly::unique_any<value_type, [](const value_type& p) {
+    Tracker::call_count++;
+    Tracker::last_value = p.value;
+  }>;
+
+  SECTION("is-valid") {
+    CHECK_FALSE(test_type {std::in_place});
+    CHECK(test_type {std::in_place, 1});
+  }
+  SECTION("deleter not called for invalid") {
+    Tracker::reset();
+    std::ignore = test_type {std::in_place};
+    CHECK(Tracker::call_count == 0);
+  }
+
+  SECTION("deleter called for valid") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    std::ignore = test_type {std::in_place, value};
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+
+  SECTION("moveable") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    auto u = test_type {std::in_place, value};
+    CHECK(u);
+    {
+      auto u2 = std::move(u);
+      CHECK_FALSE(u);
+      CHECK(u2);
+      CHECK(Tracker::call_count == 0);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+
+  SECTION("get") {
+    constexpr auto value = __LINE__;
+    CHECK(test_type {std::in_place, value}.get() == value);
   }
 }
