@@ -36,6 +36,14 @@ struct unique_any {
     }
   }
 
+  template <class... Args>
+  constexpr unique_any(std::in_place_t, Args&&... args) {
+    mValue = T {std::forward<Args>(args)...};
+    if (!TPredicate(*mValue)) {
+      mValue.reset();
+    }
+  }
+
   constexpr unique_any(unique_any&& other) noexcept {
     *this = std::move(other);
   }
