@@ -131,4 +131,40 @@ TEST_CASE("unique_any - basic behavior") {
     CHECK(Tracker::call_count == 2);
     CHECK(Tracker::last_value == v1);
   }
+
+  SECTION("swap") {
+    Tracker::reset();
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
+    auto u1 = unique_fd_like {v1};
+    auto u2 = unique_fd_like {v2};
+
+    std::swap(u1, u1);
+    CHECK(u1.get() == v1);
+    CHECK(Tracker::call_count == 0);
+
+    std::swap(u1, u2);
+    CHECK(u1.get() == v2);
+    CHECK(u2.get() == v1);
+    CHECK(Tracker::call_count == 0);
+
+    auto u3 = std::move(u2);
+    CHECK(Tracker::call_count == 0);
+    CHECK(u3.get() == v1);
+    CHECK(u1);
+    CHECK_FALSE(u2);
+    std::swap(u1, u2);
+    CHECK(u2);
+    CHECK_FALSE(u1);
+    CHECK(Tracker::call_count == 0);
+    CHECK(u2.get() == v2);
+
+    u1 = {-1};
+    CHECK_FALSE(u1);
+    std::swap(u1, u2);
+    CHECK(u1);
+    CHECK_FALSE(u2);
+    CHECK(Tracker::call_count == 0);
+    CHECK(u1.get() == v2);
+  }
 }
