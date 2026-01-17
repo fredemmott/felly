@@ -361,7 +361,7 @@ TEST_CASE("unique_any - -1 pointers") {
   }
 }
 
-TEST_CASE("non-copyable values") {
+TEST_CASE("unique_any - aggregates") {
   struct value_type : felly::non_copyable {
     constexpr value_type() = default;
     constexpr explicit value_type(const int value) : value {value} {}
