@@ -4,6 +4,7 @@
 
 #include "moved_flag.hpp"
 
+#include <compare>
 #include <concepts>
 #include <functional>
 #include <stdexcept>
@@ -63,7 +64,24 @@ struct unique_any {
     }
   }
 
-  operator bool() const noexcept { return (!mMoved) && TPredicate(mValue); }
+  constexpr operator bool() const noexcept {
+    return (!mMoved) && TPredicate(mValue);
+  }
+
+  [[nodiscard]]
+  friend constexpr auto operator<=>(
+    const unique_any& lhs,
+    const unique_any& rhs) noexcept
+    requires std::three_way_comparable_with<T, T, std::strong_ordering>
+  {
+    if (const auto cmp = lhs.mMoved <=> rhs.mMoved; cmp != 0) return cmp;
+
+    return lhs.mValue <=> rhs.mValue;
+  }
+
+  [[nodiscard]]
+  friend constexpr bool operator==(const unique_any&, const unique_any&) =
+    default;
 
  private:
   moved_flag mMoved;
