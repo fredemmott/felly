@@ -105,6 +105,17 @@ TEST_CASE("unique_any - basic behavior") {
     CHECK(Tracker::last_value == value);
   }
 
+  SECTION("move to self") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    auto u = unique_fd_like {value};
+    // `u = std::move(u)`, but bypass move-to-self compiler warnings
+    u = std::move(*std::addressof(u));
+    CHECK(u);
+    CHECK(u.get() == value);
+    CHECK(Tracker::call_count == 0);
+  }
+
   SECTION("move to owning") {
     Tracker::reset();
     constexpr auto v1 = __LINE__;

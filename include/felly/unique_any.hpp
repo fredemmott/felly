@@ -37,6 +37,10 @@ struct unique_any {
   }
 
   constexpr unique_any& operator=(unique_any&& other) noexcept {
+    if (this == std::addressof(other)) {
+      return *this;
+    }
+
     if (mValue) {
       std::invoke(TDeleter, *mValue);
     }
