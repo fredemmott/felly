@@ -202,6 +202,47 @@ TEST_CASE("unique_any - basic values") {
     CHECK(unique_fd_like {-1} == unique_fd_like {-1});
     CHECK_FALSE(unique_fd_like {0} == unique_fd_like {1});
   }
+
+  SECTION("get_and_disown()") {
+    Tracker::reset();
+    {
+      constexpr auto value = __LINE__;
+      auto u = unique_fd_like {value};
+      CHECK(u.get_and_disown() == value);
+      CHECK_FALSE(u);
+    }
+    CHECK(Tracker::call_count == 0);
+    CHECK_FALSE(Tracker::last_value.has_value());
+  }
+  SECTION("reset()") {
+    Tracker::reset();
+    constexpr auto v1 = __LINE__;
+    {
+      auto u = unique_fd_like {v1};
+      CHECK(u);
+      u.reset();
+      CHECK_FALSE(u);
+
+      CHECK(Tracker::call_count == 1);
+      CHECK(Tracker::last_value == v1);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == v1);
+  }
+
+  SECTION("reset() with new value") {
+    Tracker::reset();
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
+    {
+      auto u = unique_fd_like {v1};
+      u.reset(v2);
+      CHECK(Tracker::call_count == 1);
+      CHECK(Tracker::last_value == v1);
+    }
+    CHECK(Tracker::call_count == 2);
+    CHECK(Tracker::last_value == v2);
+  }
 }
 
 TEST_CASE("unique_any - standard pointers") {
@@ -336,5 +377,12 @@ TEST_CASE("non-copyable values") {
   SECTION("get") {
     constexpr auto value = __LINE__;
     CHECK(test_type {std::in_place, value}.get() == value);
+  }
+
+  SECTION("get_and_disown") {
+    constexpr auto value = __LINE__;
+    const auto ret = test_type {std::in_place, value}.get_and_disown();
+    STATIC_CHECK(std::same_as<value_type, std::remove_cvref_t<decltype(ret)>>);
+    CHECK(ret.value == value);
   }
 }

@@ -84,21 +84,43 @@ struct unique_any {
 
   template <std::convertible_to<T> U>
   explicit constexpr unique_any(U&& value) {
-    if (TPredicate(value)) {
+    if (std::invoke(TPredicate, value)) {
       storage.emplace(std::forward<U>(value));
     }
   }
 
   template <class... Args>
+    requires(!std::is_pointer_v<T>)
   explicit constexpr unique_any(std::in_place_t, Args&&... args) {
     storage.emplace(std::forward<Args>(args)...);
-    if (!TPredicate(storage.value())) {
+    if (!std::invoke(TPredicate, storage.value())) {
       storage.reset();
     }
   }
-
   constexpr unique_any(unique_any&& other) noexcept {
     *this = std::move(other);
+  }
+
+  constexpr void reset() noexcept {
+    if (*this) {
+      std::invoke(TDeleter, storage.value());
+    }
+    storage.reset();
+  }
+
+  template <std::convertible_to<T> U>
+  constexpr void reset(U&& u) {
+    reset();
+    storage.emplace(std::forward<U>(u));
+  }
+
+  // Like std::unique_ptr's `release()`, but more clearly named
+  [[nodiscard]]
+  constexpr T get_and_disown() {
+    require_value();
+    auto ret = std::move(storage.value());
+    storage.reset();
+    return std::move(ret);
   }
 
   constexpr unique_any& operator=(unique_any&& other) noexcept {
@@ -122,9 +144,7 @@ struct unique_any {
   template <class Self>
   [[nodiscard]]
   constexpr decltype(auto) get(this Self&& self) {
-    if (!self) [[unlikely]] {
-      throw std::logic_error("Can't access a moved or invalid value");
-    }
+    self.require_value();
     return std::forward_like<Self>(self.storage.value());
   }
 
@@ -136,9 +156,7 @@ struct unique_any {
 
   template <class Self>
   constexpr decltype(auto) operator->(this Self&& self) {
-    if (!self) [[unlikely]] {
-      throw std::logic_error("Can't access a moved or invalid value");
-    }
+    self.require_value();
 
     if constexpr (std::is_pointer_v<T>) {
       return std::forward_like<Self>(*self.storage);
@@ -167,7 +185,7 @@ struct unique_any {
     requires std::equality_comparable<T>
   {
     if (!storage.has_value()) {
-      return !TPredicate(other);
+      return !std::invoke(TPredicate, other);
     }
 
     return (storage.value() == other);
@@ -175,6 +193,12 @@ struct unique_any {
 
  private:
   storage_type storage;
+
+  constexpr void require_value() const {
+    if (!*this) [[unlikely]] {
+      throw std::logic_error("Can't access a moved or invalid value");
+    }
+  }
 };
 
 }// namespace felly::inline unique_any_types
