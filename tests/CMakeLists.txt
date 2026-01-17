@@ -3,8 +3,9 @@ find_package(Catch2 CONFIG REQUIRED)
 add_executable(
   tests
   moved_flag.cpp
-  numeric_cast.cpp
+  no_unique_address.cpp
   non_copyable.cpp
+  numeric_cast.cpp
   overload.cpp
   scope_exit.cpp
 )

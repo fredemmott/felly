@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "no_unique_address.hpp"
+
 #include <concepts>
 #include <exception>
 #include <functional>
@@ -23,11 +25,7 @@ template <basic_scope_exit_execution_policy TWhen, std::invocable<> TCallback>
 class basic_scope_exit final {
  private:
   using enum basic_scope_exit_execution_policy;
-#ifdef _MSC_VER
-  [[msvc::no_unique_address]]
-#else
-  [[no_unique_address]]
-#endif
+  FELLY_NO_UNIQUE_ADDRESS
   std::conditional_t<TWhen != Always, int, empty> mInitialUncaught {};
 
   std::remove_cvref_t<TCallback> mCallback;
