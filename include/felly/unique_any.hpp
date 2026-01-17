@@ -10,6 +10,38 @@
 #include <utility>
 
 namespace felly::inline unique_any_types {
+
+template <class T>
+class unique_any_storage {
+  std::optional<T> storage;
+
+ public:
+  [[nodiscard]] constexpr bool has_value() const noexcept {
+    return storage.has_value();
+  }
+  template <class Self>
+  [[nodiscard]] constexpr decltype(auto) value(this Self&& self) {
+    return std::forward_like<Self>(self.storage.value());
+  }
+
+  constexpr void reset() noexcept { storage.reset(); }
+
+  template <class... Args>
+  constexpr void emplace(Args&&... args) {
+    storage.emplace(std::forward<Args>(args)...);
+  }
+
+  friend constexpr auto operator<=>(
+    const unique_any_storage& lhs,
+    const unique_any_storage& rhs) noexcept
+    requires std::three_way_comparable<T>
+  {
+    return lhs.storage <=> rhs.storage;
+  }
+
+  constexpr bool operator==(const unique_any_storage&) const noexcept = default;
+};
+
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *
  * For example:
@@ -26,21 +58,24 @@ template <
   std::invocable<T> auto TDeleter,
   std::predicate<T> auto TPredicate = std::identity {}>
 struct unique_any {
+  using storage_type = unique_any_storage<T>;
+
   unique_any() = delete;
   unique_any(const unique_any&) = delete;
   unique_any& operator=(const unique_any&) = delete;
 
-  constexpr unique_any(T value) {
+  template <std::convertible_to<T> U>
+  explicit constexpr unique_any(U&& value) {
     if (TPredicate(value)) {
-      mValue = std::move(value);
+      storage.emplace(std::forward<U>(value));
     }
   }
 
   template <class... Args>
-  constexpr unique_any(std::in_place_t, Args&&... args) {
-    mValue = T {std::forward<Args>(args)...};
-    if (!TPredicate(*mValue)) {
-      mValue.reset();
+  explicit constexpr unique_any(std::in_place_t, Args&&... args) {
+    storage.emplace(std::forward<Args>(args)...);
+    if (!TPredicate(storage.value())) {
+      storage.reset();
     }
   }
 
@@ -53,50 +88,51 @@ struct unique_any {
       return *this;
     }
 
-    if (mValue) {
-      std::invoke(TDeleter, *mValue);
+    if (storage.has_value()) {
+      std::invoke(TDeleter, storage.value());
     }
-    mValue = std::exchange(other.mValue, std::nullopt);
+    storage = std::exchange(other.storage, storage_type {});
     return *this;
   }
 
   ~unique_any() {
-    if (*this) {
-      std::invoke(TDeleter, *mValue);
+    if (storage.has_value()) {
+      std::invoke(TDeleter, storage.value());
     }
   }
 
   template <class Self>
   [[nodiscard]]
   constexpr decltype(auto) get(this Self&& self) {
-    if (!self.mValue) {
+    if (!self.storage.has_value()) {
       throw std::logic_error("Can't access a moved or invalid value");
     }
-    return std::forward_like<Self>(*self.mValue);
+    return std::forward_like<Self>(self.storage.value());
   }
 
   template <class Self>
   constexpr decltype(auto) operator->(this Self&& self) {
-    if (!self.mValue) {
+    if (!self.storage) {
       throw std::logic_error("Can't access a moved or invalid value");
     }
 
     if constexpr (std::is_pointer_v<T>) {
-      return std::forward_like<Self>(*self.mValue);
+      return std::forward_like<Self>(*self.storage);
     } else {
-      return std::forward_like<Self>(&*self.mValue);
+      return std::forward_like<Self>(&*self.storage);
     }
   }
 
   constexpr operator bool() const noexcept {
-    return (mValue) && TPredicate(*mValue);
+    // We never store an invalid value
+    return storage.has_value();
   }
 
   [[nodiscard]]
   friend constexpr auto operator<=>(
     const unique_any& lhs,
     const unique_any& rhs) noexcept
-    requires std::three_way_comparable_with<T, T, std::strong_ordering>
+    requires std::three_way_comparable<T>
   = default;
 
   [[nodiscard]]
@@ -106,15 +142,15 @@ struct unique_any {
   constexpr bool operator==(const T& other) const noexcept
     requires std::equality_comparable<T>
   {
-    if (!mValue) {
+    if (!storage.has_value()) {
       return !TPredicate(other);
     }
 
-    return (*mValue == other);
+    return (storage.value() == other);
   }
 
  private:
-  std::optional<T> mValue;
+  storage_type storage;
 };
 
 }// namespace felly::inline unique_any_types

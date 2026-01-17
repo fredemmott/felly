@@ -186,7 +186,7 @@ TEST_CASE("unique_any - basic values") {
     CHECK(Tracker::call_count == 0);
     CHECK(u2.get() == v2);
 
-    u1 = {-1};
+    u1 = unique_fd_like {-1};
     CHECK_FALSE(u1);
     std::swap(u1, u2);
     CHECK(u1);
