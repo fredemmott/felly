@@ -286,6 +286,24 @@ TEST_CASE("unique_any - standard pointers") {
     CHECK(Tracker::last_value == value);
   }
 
+  SECTION("get()") {
+    constexpr auto value = __LINE__;
+    auto u = test_type {new WithTrackedDestructor(value)};
+    using TGet = decltype(u.get());
+    STATIC_CHECK(!std::is_reference_v<TGet>);
+    STATIC_CHECK(std::is_pointer_v<TGet>);
+    CHECK(u.get()->value == value);
+  }
+
+  SECTION("operator->") {
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
+    auto v = test_type {new WithTrackedDestructor(v1)};
+    CHECK(v->value == v1);
+    v->value = v2;
+    CHECK(v->value == v2);
+  }
+
   SECTION("comparison with nullptr") {
     Tracker::reset();
     CHECK(test_type {nullptr} == nullptr);

@@ -59,10 +59,7 @@ class unique_any_pointer_storage {
 
  public:
   [[nodiscard]] constexpr bool has_value() const noexcept { return storage; }
-  [[nodiscard]]
-  constexpr T value() const noexcept {
-    return storage;
-  }
+  [[nodiscard]] constexpr T value() const noexcept { return storage; }
   constexpr void reset() noexcept { storage = nullptr; }
   constexpr void emplace(const T value) noexcept { storage = value; }
 
@@ -168,7 +165,7 @@ struct unique_any {
    * For objects, use `operator->` instead
    */
   [[nodiscard]]
-  constexpr const T& get() const {
+  constexpr decltype(auto) get() const {
     require_value();
     return storage.value();
   }
@@ -183,9 +180,9 @@ struct unique_any {
     self.require_value();
 
     if constexpr (std::is_pointer_v<T>) {
-      return std::forward_like<Self>(*self.storage);
+      return self.storage.value();
     } else {
-      return std::forward_like<Self>(&*self.storage);
+      return std::forward_like<Self>(&self.storage.value());
     }
   }
 
