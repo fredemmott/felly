@@ -129,6 +129,12 @@ struct unique_any {
   }
 
   template <class Self>
+  [[nodiscard]]
+  constexpr decltype(auto) operator*(this Self&& self) {
+    return std::forward<Self>(self).get();
+  }
+
+  template <class Self>
   constexpr decltype(auto) operator->(this Self&& self) {
     if (!self) [[unlikely]] {
       throw std::logic_error("Can't access a moved or invalid value");
