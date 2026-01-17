@@ -7,15 +7,16 @@
 
 namespace felly::inline guarded_data_types {
 
-template<class T>
+template <class T>
 struct unique_guarded_data_lock {
   unique_guarded_data_lock(std::unique_lock<std::mutex> lock, T* data)
-    : mLock(std::move(lock)), mData(data) {
-  }
+    : mLock(std::move(lock)),
+      mData(data) {}
   unique_guarded_data_lock(const unique_guarded_data_lock&) = delete;
   unique_guarded_data_lock& operator=(const unique_guarded_data_lock&) = delete;
 
-  unique_guarded_data_lock& operator=(unique_guarded_data_lock&& other) noexcept {
+  unique_guarded_data_lock& operator=(
+    unique_guarded_data_lock&& other) noexcept {
     mLock = std::move(other.mLock);
     mData = std::exchange(other.mData, nullptr);
     return *this;
@@ -25,13 +26,9 @@ struct unique_guarded_data_lock {
     *this = std::move(other);
   }
 
-  T const* operator->() const noexcept {
-    return mData;
-  }
+  T const* operator->() const noexcept { return mData; }
 
-  T* operator->() noexcept {
-    return mData;
-  }
+  T* operator->() noexcept { return mData; }
 
   [[nodiscard]]
   const T& get() const noexcept {
@@ -58,7 +55,7 @@ struct unique_guarded_data_lock {
     mLock.unlock();
   }
 
-private:
+ private:
   unique_guarded_data_lock() = delete;
 
   std::unique_lock<std::mutex> mLock;
@@ -71,8 +68,8 @@ private:
  */
 template <class T>
 struct guarded_data {
-  template<class... Args>
-  explicit guarded_data(Args&&... args) : mData { std::forward<Args>(args)... } {}
+  template <class... Args>
+  explicit guarded_data(Args&&... args) : mData {std::forward<Args>(args)...} {}
 
   auto lock() {
     return unique_guarded_data_lock<T>(std::unique_lock {mMutex}, &mData);
@@ -82,9 +79,9 @@ struct guarded_data {
     return unique_guarded_data_lock<const T>(std::unique_lock {mMutex}, &mData);
   }
 
-private:
+ private:
   mutable std::mutex mMutex {};
   T mData;
 };
 
-} // namespace felly
+}// namespace felly::inline guarded_data_types

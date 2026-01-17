@@ -19,8 +19,7 @@ struct numeric_cast_range_error : std::range_error {
           "Value {} out of range {}..{}",
           value,
           std::numeric_limits<T>::lowest(),
-          std::numeric_limits<T>::max())) {
-  }
+          std::numeric_limits<T>::max())) {}
 };
 
 template <std::integral T>

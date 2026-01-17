@@ -63,16 +63,13 @@ class basic_scope_exit final {
   basic_scope_exit(basic_scope_exit&& other) noexcept
     : mInitialUncaught(other.mInitialUncaught),
       mCallback(std::move(other.mCallback)),
-      mOwned(std::exchange(other.mOwned, false)) {
-  }
+      mOwned(std::exchange(other.mOwned, false)) {}
 
   /// If we currently own a callback, invoking it could be surprising here; it
   /// could also cause noexcept issues
   basic_scope_exit& operator=(basic_scope_exit&&) noexcept = delete;
 
-  void release() noexcept {
-    mOwned = false;
-  }
+  void release() noexcept { mOwned = false; }
 };
 }// namespace felly::detail
 

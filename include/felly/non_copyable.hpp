@@ -28,5 +28,4 @@ struct non_copyable {
   friend constexpr void swap(non_copyable&, non_copyable&) noexcept {}
 };
 
-
 }// namespace felly::inline non_copyable_types

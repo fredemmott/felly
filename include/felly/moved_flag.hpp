@@ -21,9 +21,7 @@ struct moved_flag {
     return *this;
   }
 
-  constexpr operator bool() const noexcept {
-    return mMoved;
-  }
+  constexpr operator bool() const noexcept { return mMoved; }
 
  private:
   bool mMoved = false;

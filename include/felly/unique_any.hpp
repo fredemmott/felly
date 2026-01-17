@@ -30,8 +30,7 @@ struct unique_any {
   unique_any(const unique_any&) = delete;
   unique_any& operator=(const unique_any&) = delete;
 
-  unique_any(T value) : mValue(value) {
-  }
+  unique_any(T value) : mValue(value) {}
 
   constexpr unique_any(unique_any&& other) = default;
   constexpr unique_any& operator=(unique_any&& other) noexcept = default;
@@ -57,20 +56,18 @@ struct unique_any {
       throw std::logic_error("Can't access a moved value");
     }
 
-    if constexpr(std::is_pointer_v<T>) {
+    if constexpr (std::is_pointer_v<T>) {
       return std::forward_like<Self>(self.mValue);
     } else {
       return std::forward_like<Self>(&self.mValue);
     }
   }
 
-  operator bool() const noexcept {
-    return (!mMoved) && TPredicate(mValue);
-  }
+  operator bool() const noexcept { return (!mMoved) && TPredicate(mValue); }
 
  private:
   moved_flag mMoved;
   T mValue {};
 };
 
-}// namespace felly
+}// namespace felly::inline unique_any_types
