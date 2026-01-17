@@ -42,6 +42,24 @@ class unique_any_storage {
   constexpr bool operator==(const unique_any_storage&) const noexcept = default;
 };
 
+template <class T>
+  requires std::is_pointer_v<T>
+class unique_any_storage<T> {
+  T storage {};
+
+ public:
+  [[nodiscard]] constexpr bool has_value() const noexcept { return storage; }
+  [[nodiscard]]
+  constexpr T value() const noexcept {
+    return storage;
+  }
+  constexpr void reset() noexcept { storage = nullptr; }
+  constexpr void emplace(const T value) noexcept { storage = value; }
+
+  constexpr auto operator<=>(const unique_any_storage&) const noexcept =
+    default;
+};
+
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *
  * For example:

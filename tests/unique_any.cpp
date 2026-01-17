@@ -61,6 +61,8 @@ TEST_CASE("unique_any - basic values") {
 
     STATIC_CHECK(std::equality_comparable<unique_fd_like>);
     STATIC_CHECK(std::totally_ordered<unique_fd_like>);
+
+    STATIC_CHECK(sizeof(unique_fd_like) == sizeof(std::optional<int>));
   }
 
   SECTION("holds values") {
@@ -206,6 +208,7 @@ TEST_CASE("unique_any - standard pointers") {
   using test_type = felly::unique_any<
     WithTrackedDestructor*,
     std::default_delete<WithTrackedDestructor> {}>;
+  SECTION("size") { STATIC_CHECK(sizeof(test_type) == sizeof(void*)); }
 
   SECTION("is-valid") {
     CHECK_FALSE(test_type {nullptr});
@@ -241,6 +244,8 @@ TEST_CASE("unique_any - -1 pointers") {
   // negative pointers can't be constexpr, which is why we don't take an
   // invalid value template parameter
   const auto Invalid = reinterpret_cast<Aggregate*>(-1);
+
+  SECTION("size") { STATIC_CHECK(sizeof(test_type) == sizeof(void*)); }
 
   SECTION("is-valid") {
     CHECK_FALSE(test_type {Invalid});
