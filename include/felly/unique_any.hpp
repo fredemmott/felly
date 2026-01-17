@@ -140,7 +140,7 @@ struct unique_any {
 
   // Like std::unique_ptr's `release()`, but more clearly named
   [[nodiscard]]
-  constexpr T get_and_disown() {
+  constexpr T disown() {
     require_value();
     auto ret = std::move(storage.value());
     storage.reset();
@@ -159,17 +159,23 @@ struct unique_any {
 
   ~unique_any() { reset(); }
 
-  template <class Self>
+  /** Always-const, as we don't want to allow changing what the deleter needs to
+   * do.
+   *
+   * For example, `some_unique_fd.get() = -1;` could leak
+   *
+   * For values, use `get()`, `reset()`, and `disown()` instead
+   * For objects, use `operator->` instead
+   */
   [[nodiscard]]
-  constexpr decltype(auto) get(this Self&& self) {
-    self.require_value();
-    return std::forward_like<Self>(self.storage.value());
+  constexpr const T& get() const {
+    require_value();
+    return storage.value();
   }
 
-  template <class Self>
   [[nodiscard]]
-  constexpr decltype(auto) operator*(this Self&& self) {
-    return std::forward<Self>(self).get();
+  constexpr const T& operator*() {
+    return get();
   }
 
   template <class Self>

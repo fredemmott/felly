@@ -69,7 +69,9 @@ TEST_CASE("unique_any - basic values") {
     constexpr auto v1 = __LINE__;
     constexpr auto v2 = __LINE__;
     CHECK(unique_fd_like {v1}.get() == v1);
+    CHECK(*unique_fd_like {v1} == v1);
     CHECK(unique_fd_like {v2}.get() == v2);
+    CHECK(*unique_fd_like {v2} == v2);
   }
 
   SECTION("is-valid test") {
@@ -203,12 +205,12 @@ TEST_CASE("unique_any - basic values") {
     CHECK_FALSE(unique_fd_like {0} == unique_fd_like {1});
   }
 
-  SECTION("get_and_disown()") {
+  SECTION("disown()") {
     Tracker::reset();
     {
       constexpr auto value = __LINE__;
       auto u = unique_fd_like {value};
-      CHECK(u.get_and_disown() == value);
+      CHECK(u.disown() == value);
       CHECK_FALSE(u);
     }
     CHECK(Tracker::call_count == 0);
@@ -244,48 +246,22 @@ TEST_CASE("unique_any - basic values") {
     CHECK(Tracker::last_value == v2);
   }
 
-  SECTION("get() mutability") {
-    Tracker::reset();
-    {
-      unique_fd_like v {1};
-      v.get() = 2;
-      CHECK(v.get() == 2);
-    }
-    CHECK(Tracker::call_count == 1);
-    CHECK(Tracker::last_value == 2);
+  SECTION("get() is an immutable reference") {
+    static constexpr auto value = __LINE__;
+    unique_fd_like v {value};
+    CHECK(v.get() == value);
+    using U = decltype(v.get());
+    STATIC_CHECK(std::is_reference_v<U>);
+    STATIC_CHECK(std::is_const_v<std::remove_reference_t<U>>);
   }
 
-  SECTION("operator*() mutability") {
-    Tracker::reset();
-    {
-      unique_fd_like v {1};
-      *v = 2;
-      CHECK(*v == 2);
-    }
-    CHECK(Tracker::call_count == 1);
-    CHECK(Tracker::last_value == 2);
-  }
-
-  SECTION("const-correctness") {
-    unique_fd_like v {1};
-    const unique_fd_like cv {2};
-
-    STATIC_CHECK_FALSE(
-      std::is_const_v<std::remove_reference_t<decltype(v.get())>>);
-    STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(cv.get())>>);
-
-    STATIC_CHECK_FALSE(std::is_const_v<std::remove_reference_t<decltype(*v)>>);
-    STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(*cv)>>);
-  }
-
-  SECTION("mutating to invalid") {
-    Tracker::reset();
-    {
-      unique_fd_like v {1};
-      v.get() = -1;// ewww.... but... you're gonna do what you're gonna do
-      CHECK_FALSE(v);
-    }
-    CHECK(Tracker::call_count == 0);
+  SECTION("operator*() is an immutable reference") {
+    static constexpr auto value = __LINE__;
+    unique_fd_like v {value};
+    CHECK(*v == value);
+    using U = decltype(*v);
+    STATIC_CHECK(std::is_reference_v<U>);
+    STATIC_CHECK(std::is_const_v<std::remove_reference_t<U>>);
   }
 }
 
@@ -423,9 +399,9 @@ TEST_CASE("non-copyable values") {
     CHECK(test_type {std::in_place, value}.get() == value);
   }
 
-  SECTION("get_and_disown") {
+  SECTION("disown") {
     constexpr auto value = __LINE__;
-    const auto ret = test_type {std::in_place, value}.get_and_disown();
+    const auto ret = test_type {std::in_place, value}.disown();
     STATIC_CHECK(std::same_as<value_type, std::remove_cvref_t<decltype(ret)>>);
     CHECK(ret.value == value);
   }
