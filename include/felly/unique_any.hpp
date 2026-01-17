@@ -102,7 +102,7 @@ struct unique_any {
   }
 
   constexpr void reset() noexcept {
-    if (*this) {
+    if (has_value()) {
       std::invoke(TDeleter, storage.value());
     }
     storage.reset();
@@ -128,18 +128,12 @@ struct unique_any {
       return *this;
     }
 
-    if (storage.has_value()) {
-      std::invoke(TDeleter, storage.value());
-    }
+    reset();
     storage = std::exchange(other.storage, storage_type {});
     return *this;
   }
 
-  ~unique_any() {
-    if (storage.has_value()) {
-      std::invoke(TDeleter, storage.value());
-    }
-  }
+  ~unique_any() { reset(); }
 
   template <class Self>
   [[nodiscard]]
@@ -165,10 +159,7 @@ struct unique_any {
     }
   }
 
-  constexpr operator bool() const noexcept {
-    // We never store an invalid value
-    return storage.has_value();
-  }
+  constexpr operator bool() const noexcept { return has_value(); }
 
   [[nodiscard]]
   friend constexpr auto operator<=>(
@@ -184,7 +175,7 @@ struct unique_any {
   constexpr bool operator==(const T& other) const noexcept
     requires std::equality_comparable<T>
   {
-    if (!storage.has_value()) {
+    if (!has_value()) {
       return !std::invoke(TPredicate, other);
     }
 
@@ -194,8 +185,13 @@ struct unique_any {
  private:
   storage_type storage;
 
+  [[nodiscard]]
+  constexpr bool has_value() const noexcept {
+    return storage.has_value() && std::invoke(TPredicate, storage.value());
+  }
+
   constexpr void require_value() const {
-    if (!*this) [[unlikely]] {
+    if (!has_value()) [[unlikely]] {
       throw std::logic_error("Can't access a moved or invalid value");
     }
   }

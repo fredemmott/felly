@@ -277,6 +277,16 @@ TEST_CASE("unique_any - basic values") {
     STATIC_CHECK_FALSE(std::is_const_v<std::remove_reference_t<decltype(*v)>>);
     STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(*cv)>>);
   }
+
+  SECTION("mutating to invalid") {
+    Tracker::reset();
+    {
+      unique_fd_like v {1};
+      v.get() = -1;// ewww.... but... you're gonna do what you're gonna do
+      CHECK_FALSE(v);
+    }
+    CHECK(Tracker::call_count == 0);
+  }
 }
 
 TEST_CASE("unique_any - standard pointers") {
