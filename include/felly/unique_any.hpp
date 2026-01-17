@@ -17,8 +17,8 @@ namespace felly::inline unique_any_types {
  * - even when it is, it can be `void*` (e.g. on macos)
  *
  * A predicate is taken instead of an invalid value because some libraries
- * (e.g. iconv) use `(some_ptr) -1` as the sentinel value. Casting -1
- * to a pointer is never valid in constexpr, so we need this slightly
+ * (e.g. iconv, Win32 file HANDLEs) use `(some_ptr) -1` as the sentinel value.
+ * Casting -1 to a pointer is never valid in constexpr, so we need this slightly
  * more verbose API.
  */
 template <
@@ -30,7 +30,11 @@ struct unique_any {
   unique_any(const unique_any&) = delete;
   unique_any& operator=(const unique_any&) = delete;
 
-  unique_any(T value) : mValue(std::move(value)) {}
+  constexpr unique_any(T value) {
+    if (TPredicate(value)) {
+      mValue = std::move(value);
+    }
+  }
 
   constexpr unique_any(unique_any&& other) noexcept {
     *this = std::move(other);
@@ -94,7 +98,11 @@ struct unique_any {
   constexpr bool operator==(const T& other) const noexcept
     requires std::equality_comparable<T>
   {
-    return mValue && (*mValue == other);
+    if (!mValue) {
+      return !TPredicate(other);
+    }
+
+    return (*mValue == other);
   }
 
  private:

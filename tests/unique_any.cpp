@@ -65,6 +65,13 @@ TEST_CASE("unique_any - basic behavior") {
     CHECK(Tracker::last_value == 0);
   }
 
+  SECTION("invalid values are equivalent") {
+    Tracker::reset();
+    CHECK(unique_fd_like {-1} == unique_fd_like {-1});
+    CHECK(unique_fd_like {-1} == unique_fd_like {-2});
+    CHECK(Tracker::call_count == 0);
+  }
+
   SECTION("ordering") {
     CHECK(unique_fd_like {0} < unique_fd_like {1});
     CHECK_FALSE(unique_fd_like {0} > unique_fd_like {1});
