@@ -8,6 +8,7 @@
 #include <exception>
 #include <functional>
 #include <type_traits>
+#include <utility>
 
 namespace felly::detail {
 

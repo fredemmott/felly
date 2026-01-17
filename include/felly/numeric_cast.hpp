@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include <cmath>
 #include <concepts>
 #include <format>
 #include <stdexcept>
