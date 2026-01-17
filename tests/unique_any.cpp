@@ -43,6 +43,28 @@ TEST_CASE("unique_any - basic behavior") {
     STATIC_CHECK(std::totally_ordered<unique_fd_like>);
   }
 
+  SECTION("holds values") {
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
+    CHECK(unique_fd_like {v1}.get() == v1);
+    CHECK(unique_fd_like {v2}.get() == v2);
+  }
+
+  SECTION("is-valid test") {
+    Tracker::reset();
+    {
+      auto valid = unique_fd_like {0};
+      auto invalid = unique_fd_like {-1};
+      CHECK(Tracker::call_count == 0);
+      CHECK_FALSE(Tracker::last_value.has_value());
+
+      CHECK(valid);
+      CHECK_FALSE(invalid);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == 0);
+  }
+
   SECTION("ordering") {
     CHECK(unique_fd_like {0} < unique_fd_like {1});
     CHECK_FALSE(unique_fd_like {0} > unique_fd_like {1});
@@ -68,30 +90,34 @@ TEST_CASE("unique_any - basic behavior") {
     CHECK(Tracker::last_value == value);
   }
 
-  SECTION("move") {
+  SECTION("move to new") {
     Tracker::reset();
     constexpr auto value = __LINE__;
     {
       auto u = unique_fd_like {value};
+      CHECK(u);
       auto u2 = std::move(u);
+      CHECK_FALSE(u);
+      CHECK(u2);
       CHECK(Tracker::call_count == 0);
     }
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == value);
   }
 
-  SECTION("is-valid test") {
+  SECTION("move to owning") {
     Tracker::reset();
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
     {
-      auto valid = unique_fd_like {0};
-      auto invalid = unique_fd_like {-1};
-      CHECK(Tracker::call_count == 0);
-      CHECK_FALSE(Tracker::last_value.has_value());
-
-      CHECK(valid);
-      CHECK_FALSE(invalid);
+      auto u1 = unique_fd_like {v1};
+      auto u2 = unique_fd_like {v2};
+      u2 = std::move(u1);
+      CHECK(u2.get() == v1);
+      CHECK(Tracker::call_count == 1);
+      CHECK(Tracker::last_value == v2);
     }
-    CHECK(Tracker::call_count == 1);
-    CHECK(Tracker::last_value == 0);
+    CHECK(Tracker::call_count == 2);
+    CHECK(Tracker::last_value == v1);
   }
 }
