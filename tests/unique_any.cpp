@@ -243,6 +243,40 @@ TEST_CASE("unique_any - basic values") {
     CHECK(Tracker::call_count == 2);
     CHECK(Tracker::last_value == v2);
   }
+
+  SECTION("get() mutability") {
+    Tracker::reset();
+    {
+      unique_fd_like v {1};
+      v.get() = 2;
+      CHECK(v.get() == 2);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == 2);
+  }
+
+  SECTION("operator*() mutability") {
+    Tracker::reset();
+    {
+      unique_fd_like v {1};
+      *v = 2;
+      CHECK(*v == 2);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == 2);
+  }
+
+  SECTION("const-correctness") {
+    unique_fd_like v {1};
+    const unique_fd_like cv {2};
+
+    STATIC_CHECK_FALSE(
+      std::is_const_v<std::remove_reference_t<decltype(v.get())>>);
+    STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(cv.get())>>);
+
+    STATIC_CHECK_FALSE(std::is_const_v<std::remove_reference_t<decltype(*v)>>);
+    STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(*cv)>>);
+  }
 }
 
 TEST_CASE("unique_any - standard pointers") {
