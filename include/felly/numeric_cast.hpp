@@ -69,7 +69,31 @@ constexpr T numeric_cast(const U u) {
   }
 
   constexpr auto Lowest = static_cast<U>(std::numeric_limits<T>::lowest());
-  const auto TooHigh = std::pow(2.0, std::numeric_limits<T>::digits);
+  // - Not directly comparing to `max()` to avoid precision loss issues
+  // - Not using std::ldexp as while it's constexpr in C++23, it's not constexpr
+  //   in MSVC 2022 C++23:
+  // - Not using std::pow() as it's not constexpr in C++26
+  //
+  // https://github.com/microsoft/STL/issues/2530
+  //
+  // Might need to keep this for MSVC even when the above is resolved:
+  //
+  // > A major concern is how to address accuracy issues (i.e. should the
+  // > compiler prioritize mathematically-correct results, or UCRT
+  // > bug-compatibility).
+  //
+  // If MSVC chooses bug-compatibility, the standard version may be unusable
+  constexpr auto TooHigh = [] constexpr {
+    auto exponent = std::numeric_limits<T>::digits;
+    U result = 1.0;
+    U base = 2.0;
+    while (exponent > 0) {
+      if ((exponent % 2) != 0) result *= base;
+      base *= base;
+      exponent /= 2;
+    }
+    return result;
+  }();
 
   if (u < Lowest || u >= TooHigh) [[unlikely]] {
     throw numeric_cast_range_error(std::type_identity<T> {}, u);
