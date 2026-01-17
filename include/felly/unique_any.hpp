@@ -70,7 +70,7 @@ struct unique_any {
   [[nodiscard]]
   constexpr decltype(auto) get(this Self&& self) {
     if (!self.mValue) {
-      throw std::logic_error("Can't access a moved value");
+      throw std::logic_error("Can't access a moved or invalid value");
     }
     return std::forward_like<Self>(*self.mValue);
   }
@@ -78,7 +78,7 @@ struct unique_any {
   template <class Self>
   constexpr decltype(auto) operator->(this Self&& self) {
     if (!self.mValue) {
-      throw std::logic_error("Can't access a moved value");
+      throw std::logic_error("Can't access a moved or invalid value");
     }
 
     if constexpr (std::is_pointer_v<T>) {
