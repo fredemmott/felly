@@ -33,7 +33,7 @@ jobs:
       shell: pwsh
       run: |
         cmake -B build/ `
-        "-DCMAKE_TOOLCHAIN_FILE=$($Env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake)" `
+        "-DCMAKE_TOOLCHAIN_FILE=$($Env:VCPKG_INSTALLATION_ROOT)/scripts/buildsystems/vcpkg.cmake)" `
         -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }} `
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
         -S ${{ github.workspace }}
