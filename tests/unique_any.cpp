@@ -300,6 +300,40 @@ TEST_CASE("unique_any - standard pointers") {
     CHECK(Tracker::last_value == value);
   }
 
+  SECTION("std::inout_ptr") {
+    Tracker::reset();
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
+    {
+      test_type v {std::nullopt};
+      [](WithTrackedDestructor** pp) {
+        *pp = new WithTrackedDestructor(v1);
+      }(std::inout_ptr(v));
+      CHECK(v);
+      CHECK(v->value == v1);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == v1);
+    Tracker::reset();
+    {
+      test_type v {new WithTrackedDestructor(v1)};
+      [](WithTrackedDestructor** pp) {
+        REQUIRE(pp);
+        REQUIRE(*pp);
+
+        CHECK((*pp)->value == v1);
+        delete *pp;
+        *pp = new WithTrackedDestructor(v2);
+      }(std::inout_ptr(v));
+      CHECK(Tracker::call_count == 1);
+      CHECK(Tracker::last_value == v1);
+      CHECK(v);
+      CHECK(v->value == v2);
+    }
+    CHECK(Tracker::call_count == 2);
+    CHECK(Tracker::last_value == v2);
+  }
+
   SECTION("destructor called") {
     Tracker::reset();
     std::ignore = test_type {nullptr};
