@@ -35,7 +35,18 @@ class unique_any_optional_storage {
   }
   template <class Self>
   [[nodiscard]] constexpr decltype(auto) value(this Self&& self) {
-    return std::forward_like<Self>(self.storage.value());
+    // clang++18 considers `std::forward_like` here to be a use-before-defined
+    using result_type = std::conditional_t<
+      std::is_lvalue_reference_v<Self>,
+      std::add_lvalue_reference_t<std::conditional_t<
+        std::is_const_v<std::remove_reference_t<Self>>,
+        const T,
+        T>>,
+      std::add_rvalue_reference_t<std::conditional_t<
+        std::is_const_v<std::remove_reference_t<Self>>,
+        const T,
+        T>>>;
+    return static_cast<result_type>(self.storage.value());
   }
 
   constexpr void reset() noexcept { storage.reset(); }
