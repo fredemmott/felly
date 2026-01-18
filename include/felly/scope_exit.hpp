@@ -23,7 +23,7 @@ enum class basic_scope_exit_execution_policy {
 // Roughly equivalent to `std::experimental::scope_exit`, but that isn't wideley
 // available yet
 template <basic_scope_exit_execution_policy TWhen, std::invocable<> TCallback>
-class basic_scope_exit final {
+class basic_scope_exit {
  private:
   using enum basic_scope_exit_execution_policy;
   FELLY_NO_UNIQUE_ADDRESS
@@ -75,13 +75,24 @@ class basic_scope_exit final {
 }// namespace felly::detail
 
 namespace felly::inline scope_exit_types {
+template <std::invocable<> T>
+struct scope_exit
+  : detail::
+      basic_scope_exit<detail::basic_scope_exit_execution_policy::Always, T> {};
+template <class T>
+scope_exit(T) -> scope_exit<T>;
+
+template <std::invocable<> T>
+struct scope_fail : detail::basic_scope_exit<
+                      detail::basic_scope_exit_execution_policy::OnFailure,
+                      T> {};
+template <class T>
+scope_fail(T) -> scope_fail<T>;
+
 template <class T = std::function<void()>>
-using scope_exit = detail::
-  basic_scope_exit<detail::basic_scope_exit_execution_policy::Always, T>;
-template <class T = std::function<void()>>
-using scope_fail = detail::
-  basic_scope_exit<detail::basic_scope_exit_execution_policy::OnFailure, T>;
-template <class T = std::function<void()>>
-using scope_success = detail::
-  basic_scope_exit<detail::basic_scope_exit_execution_policy::OnSuccess, T>;
+struct scope_success : detail::basic_scope_exit<
+                         detail::basic_scope_exit_execution_policy::OnSuccess,
+                         T> {};
+template <class T>
+scope_success(T) -> scope_success<T>;
 }// namespace felly::inline scope_exit_types
