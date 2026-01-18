@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         build_type: [Debug, RelWithDebInfo]
         cxx_compiler: [g++-14, clang++, cl, clang-cl]
         exclude:
@@ -26,7 +26,13 @@ jobs:
             cxx_compiler: cl
           - os: ubuntu-latest
             cxx_compiler: clang-cl
-    steps:
+          - os: macos-latest
+            cxx_compiler: g++-14
+          - os: macos-latest
+            cxx_compiler: cl
+          - os: macos-latest
+            cxx_compiler: clang-cl
+        steps:
     - uses: actions/checkout@v4
     - name: Setup environment
       uses: ./.github/actions/configure-environment
