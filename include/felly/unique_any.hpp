@@ -5,6 +5,7 @@
 #include <compare>
 #include <concepts>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <tuple>
