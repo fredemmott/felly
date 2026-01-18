@@ -239,6 +239,8 @@ unique_fd my_fd(open("test.txt", O_RDONLY));
 
 **Notes**
 
+If you are using `unique_any` with a pointer type, you can use `felly::unique_ptr` instead to gain a default constructor (initializing to the empty state), and support for `std::out_ptr` and `std::inout_ptr`.
+
 `unique_any` has no default constructor, as the expected behavior is unclear for `unique_any<T>` vs `unique_any<T*>`:
 
 - option A: both default-construct the parameter, i.e. `unique_any<T>` is initialized to `T {}` and `unique_any<T*>` is initialized to `nullptr`
