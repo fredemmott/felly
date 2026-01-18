@@ -40,6 +40,16 @@ I expect this library to continue to target modern compilers; once it's past v0.
 
 ## Components
 
+- [felly::guarded_data](#fellyguarded_data): Monitor-pattern/totally not a Rust mutex
+- [felly::moved_flag](#fellymoved_flag): Marker to simplify destructors of moveable objects
+- [felly::non_copyable](#fellynon_copyable): Supertype or member to ban copying while allowing moving
+- [felly::numeric_cast](#fellynumeric_cast): Cast between numeric types (including integral types <-> floating point types) with bounds and other error checks 
+- [felly::overload](#fellyoverload): Helper for `std::visit()` on `std::variant` with compiler exhaustiveness checks
+- [felly::scope_exit, scope_fail, scope_success](#fellyscope_exit-scope_fail-scope_success): RAII helpers for executing code when the current scope ends
+- [felly::unique_any](#fellyunique_any): Like unique_any, but for any type
+- [FELLY_CPLUSPLUS](#fellycpp): Like `__cplusplus`, but works around Microsoft decisions and clang-cl quirks to give consistently correct results
+- [FELLY_NO_UNIQUE_ADDRESS](#felly_no_unique_address): Like `[[no_unique_address]]`, but uses `[[msvc::no_unique_address]]` where available to work around Microsoft's decision to make `[[no_unique_address]]` a no-op to preserve ABI compatibility
+
 ---
 
 ### felly::guarded_data
@@ -72,91 +82,6 @@ felly::guarded_data<std::string> protected_str("Hello");
 
 * **vs std::mutex**: `std::mutex` is decoupled from the data; `guarded_data` enforces the association so you cannot accidentally access the data without locking.
 
----
-
-### felly::unique_any
-
-**Overview**
-
-A resource management container similar to `unique_ptr`, but designed to handle arbitrary types (like `int` handles) and custom "invalid" sentinel values.
-
-**Example**
-
-```cpp
-#include <felly/unique_any.hpp>
-#include <unistd.h>
-
-// Guarding a file descriptor where -1 is the invalid value
-using unique_fd = felly::unique_any<
-    int, 
-    &close,
-    [](int fd){ return fd >= 0; } // is_valid function (optional)
->;
-
-unique_fd my_fd(open("test.txt", O_RDONLY));
-```
-
-**Common Edge Cases/Problems**
-* **'Special' pointers**: Perfect for Win32 `HANDLE`s where `INVALID_HANDLE_VALUE` is possible
-* **Non-pointer values**: Suitable for Unix FDs or WinSock sockets
-* **Const promotion**: Supports moving a non-const handle into a const-handle container.
-* **Storage overhead**: Uses a specialized pointer storage optimization to avoid `std::optional` overhead when the underlying type is a pointer.
-* **consistent handling for opaque types which vary by platform**: for example, `locale_t` is a pointer on *some* platforms, and a value on others
-
-**Differences with Alternatives**
-* Ownership can be released via `disown()`, which returns the (moved) underlying value; this is equivalent to `std::unique_ptr`'s `release()`. I've renamed it due to repeatedly coming across code that leaks by accidentally calling `release()` (disown) when `reset()` (delete/cleanup) was intended.
-* **vs std::unique_ptr**: `unique_ptr` is strictly for pointers and uses `nullptr` as the only empty state. `unique_any` is generic for any type and any "invalid" predicate.
-* **vs most other `unique_any`**: most of these can only hold *values*, or require that invalid values are compile-time constants. `-1` is a common invalid value, but is an invalid compile-time value for any pointer type
-
----
-
-### felly::numeric_cast
-
-**Overview**
-A suite of range-checked conversion functions that throw a `numeric_cast_range_error` if a conversion would result in data loss or is mathematically undefined (like NaN to int).
-
-**Example**
-```cpp
-#include <felly/numeric_cast.hpp>
-
-try {
-    int64_t big = 10000000000;
-    int32_t small = felly::numeric_cast<int32_t>(big); // Throws!
-} catch (const felly::numeric_cast_range_error& e) {
-    // Handle error
-}
-```
-
-**Common Edge Cases/Problems**
-* **Floating-point to/from Integral**: Not limited to integral-to-integral or floating-point-to-floating-point
-* **NaN Handling**: Specifically throws when converting `NaN` to integers, but allows `NaN` when casting between float types.
-* **Precision Loss**: Includes specialized logic to detect if a large floating point value exceeds the exact representable range of a target integer.
-
-**Differences with Alternatives**
-* **vs static_cast**: `static_cast` silently truncates or wraps; `numeric_cast` ensures data integrity.
-* **vs boost::numeric_cast**: Updated for C++23 concepts and handles floating-point/integral crossovers with higher precision.
-
----
-
-### felly::scope_exit, scope_fail, scope_success
-
-**Overview**
-RAII guards that execute a callback when the current scope exits. Variants allow execution always, only on exception (`scope_fail`), or only on success (`scope_success`).
-
-**Example**
-```cpp
-#include <felly/scope_exit.hpp>
-
-void process() {
-    auto* ptr = malloc(1024);
-    felly::scope_exit cleanup([&]{ free(ptr); });
-    
-    felly::scope_fail on_error([&]{ std::print("Operation failed!"); });
-}
-```
-
-**Common Edge Cases/Problems**
-* **Double Execution**: The `.release()` method allows you to cancel the callback (e.g., if ownership is transferred).
 ---
 
 ### felly::moved_flag
@@ -201,6 +126,34 @@ struct MyType : felly::non_copyable {
 
 ---
 
+### felly::numeric_cast
+
+**Overview**
+A suite of range-checked conversion functions that throw a `numeric_cast_range_error` if a conversion would result in data loss or is mathematically undefined (like NaN to int).
+
+**Example**
+```cpp
+#include <felly/numeric_cast.hpp>
+
+try {
+    int64_t big = 10000000000;
+    int32_t small = felly::numeric_cast<int32_t>(big); // Throws!
+} catch (const felly::numeric_cast_range_error& e) {
+    // Handle error
+}
+```
+
+**Common Edge Cases/Problems**
+* **Floating-point to/from Integral**: Not limited to integral-to-integral or floating-point-to-floating-point
+* **NaN Handling**: Specifically throws when converting `NaN` to integers, but allows `NaN` when casting between float types.
+* **Precision Loss**: Includes specialized logic to detect if a large floating point value exceeds the exact representable range of a target integer.
+
+**Differences with Alternatives**
+* **vs static_cast**: `static_cast` silently truncates or wraps; `numeric_cast` ensures data integrity.
+* **vs boost::numeric_cast**: Updated for C++23 concepts and handles floating-point/integral crossovers with higher precision.
+
+---
+
 ### felly::overload
 
 **Overview**
@@ -224,6 +177,64 @@ std::visit(felly::overload {
 
 **Differences with Alternatives**
 * **vs Custom Struct**: Replaces the manual boilerplate of creating a struct that inherits from multiple lambdas.
+
+---
+
+### felly::scope_exit, scope_fail, scope_success
+
+**Overview**
+RAII guards that execute a callback when the current scope exits. Variants allow execution always, only on exception (`scope_fail`), or only on success (`scope_success`).
+
+**Example**
+```cpp
+#include <felly/scope_exit.hpp>
+
+void process() {
+    auto* ptr = malloc(1024);
+    felly::scope_exit cleanup([&]{ free(ptr); });
+    
+    felly::scope_fail on_error([&]{ std::print("Operation failed!"); });
+}
+```
+
+**Common Edge Cases/Problems**
+* **Double Execution**: The `.release()` method allows you to cancel the callback (e.g., if ownership is transferred).
+
+---
+
+### felly::unique_any
+
+**Overview**
+
+A resource management container similar to `unique_ptr`, but designed to handle arbitrary types (like `int` handles) and custom "invalid" sentinel values.
+
+**Example**
+
+```cpp
+#include <felly/unique_any.hpp>
+#include <unistd.h>
+
+// Guarding a file descriptor where -1 is the invalid value
+using unique_fd = felly::unique_any<
+    int, 
+    &close,
+    [](int fd){ return fd >= 0; } // is_valid function (optional)
+>;
+
+unique_fd my_fd(open("test.txt", O_RDONLY));
+```
+
+**Common Edge Cases/Problems**
+* **'Special' pointers**: Perfect for Win32 `HANDLE`s where `INVALID_HANDLE_VALUE` is possible
+* **Non-pointer values**: Suitable for Unix FDs or WinSock sockets
+* **Const promotion**: Supports moving a non-const handle into a const-handle container.
+* **Storage overhead**: Uses a specialized pointer storage optimization to avoid `std::optional` overhead when the underlying type is a pointer.
+* **consistent handling for opaque types which vary by platform**: for example, `locale_t` is a pointer on *some* platforms, and a value on others
+
+**Differences with Alternatives**
+* Ownership can be released via `disown()`, which returns the (moved) underlying value; this is equivalent to `std::unique_ptr`'s `release()`. I've renamed it due to repeatedly coming across code that leaks by accidentally calling `release()` (disown) when `reset()` (delete/cleanup) was intended.
+* **vs std::unique_ptr**: `unique_ptr` is strictly for pointers and uses `nullptr` as the only empty state. `unique_any` is generic for any type and any "invalid" predicate.
+* **vs most other `unique_any`**: most of these can only hold *values*, or require that invalid values are compile-time constants. `-1` is a common invalid value, but is an invalid compile-time value for any pointer type
 
 ---
 
