@@ -8,25 +8,207 @@ components should be their own libraries. It should not contain platform-specifi
 
 My current overall goal is to reduce duplication between my own projects.
 
-## What's included
+## Components
 
-- `felly::guarded_data`: A wrapper for arbitrary data that is guarded by an RAII lock; similar to Rust's mutex
-- `felly::moved_flag`: A marker for whether or not an object has been moved. Useful for destructors, e.g.
-  `if (moved) return;`
-- `felly::non_copyable`: An empty type that is not copyable. Unlike `boost::noncopyable`, it is moveable and comparable
-- `felly::numeric_cast`: Range-checked conversion between built-in numeric types, including integral-to-integral,
-  floating-point-to-floating-point, and integral-to-from-floating-point conversions. Throws on out of bounds, or when
-  attempting to convert NaN to an integral type; NaN is permitted when converting between floating point types.
-- `felly::overload`: The trivial implementation of the overload pattern, for invoking `std::visit` on an `std::variant`
-  with exhaustiveness checks
-- `felly::scope_exit`, `scope_failure`, `scope_success`: RAII helpers for executing code at scope exit unconditionally,
-  only when an exception is thrown, or when an exception is *not* thrown. Inspired by TS v3
-- `felly::unique_any`: A `unique_ptr`-like class, designed to hold arbitrary types with a 'free'-like function. It is
-  also useful for pointers where a non-`nullptr` 'empty' value is used, e.g. `INVALID_HANDLE_VALUE` or `(T*)-1`
-- `FELLY_NO_UNIQUE_ADDRESS`: maps to either `[[no_unique_address]]` or `[[msvc::no_unique_address]]`; MSVC recognizes
-  `[[no_unique_address]]` but ignores it, to avoid potential ABI issues
-- `FELLY_CPLUSPLUS`: maps to either `__cplusplus` or `_MSVC_CLANG`; checks for and deals with CMake's handling of
-  `CMAKE_CXX_STANDARD` with `clang-cl` (which passes `-clang:-std=c++23`)
+---
+
+### felly::guarded_data
+
+**Overview**
+
+A wrapper that encapsulates data and a mutex, ensuring the data can only be accessed while the mutex is held. This provides a pattern similar to Rust's `std::sync::Mutex`, preventing accidental access without the mutex.
+
+**Example**
+
+```cpp
+#include <felly/guarded_data.hpp>
+#include <string>
+
+felly::guarded_data<std::string> protected_str("Hello");
+
+{
+    auto lock = protected_str.lock();
+    lock->append(" World"); // Access via operator->
+} // Mutex automatically released
+```
+
+**Common Edge Cases/Problems**
+
+* **Manual Unlocking**: Supports a `.unlock()` method on the guard to release the mutex early.
+* **Const Correctness**: Provides `lock() const` which returns a guard for `const T&`, preventing mutation of shared data in read-only contexts.
+* **Deadlocks**: Standard mutex rules apply; nesting multiple `guarded_data` locks requires careful ordering.
+
+**Differences with Alternatives**
+
+* **vs std::mutex**: `std::mutex` is decoupled from the data; `guarded_data` enforces the association so you cannot accidentally access the data without locking.
+
+---
+
+### felly::unique_any
+
+**Overview**
+
+A resource management container similar to `unique_ptr`, but designed to handle arbitrary types (like `int` handles) and custom "invalid" sentinel values.
+
+**Example**
+
+```cpp
+#include <felly/unique_any.hpp>
+#include <unistd.h>
+
+// Guarding a file descriptor where -1 is the invalid value
+using unique_fd = felly::unique_any<
+    int, 
+    &close,
+    [](int fd){ return fd >= 0; } // is_valid function (optional)
+>;
+
+unique_fd my_fd(open("test.txt", O_RDONLY));
+```
+
+**Common Edge Cases/Problems**
+* **'Special' pointers**: Perfect for Win32 `HANDLE`s where `INVALID_HANDLE_VALUE` is possible
+* **Non-pointer values**: Suitable for Unix FDs or WinSock sockets
+* **Const promotion**: Supports moving a non-const handle into a const-handle container.
+* **Storage overhead**: Uses a specialized pointer storage optimization to avoid `std::optional` overhead when the underlying type is a pointer.
+* **consistent handling for opaque types which vary by platform**: for example, `locale_t` is a pointer on *some* platforms, and a value on others
+
+**Differences with Alternatives**
+* **vs std::unique_ptr**: `unique_ptr` is strictly for pointers and uses `nullptr` as the only empty state. `unique_any` is generic for any type and any "invalid" predicate.
+* **vs most other `unique_any`**: most of these can only hold *values*, or require that invalid values are compile-time constants. `-1` is a common invalid value, but is an invalid compile-time value for any pointer type
+
+---
+
+### felly::numeric_cast
+
+**Overview**
+A suite of range-checked conversion functions that throw a `numeric_cast_range_error` if a conversion would result in data loss or is mathematically undefined (like NaN to int).
+
+**Example**
+```cpp
+#include <felly/numeric_cast.hpp>
+
+try {
+    int64_t big = 10000000000;
+    int32_t small = felly::numeric_cast<int32_t>(big); // Throws!
+} catch (const felly::numeric_cast_range_error& e) {
+    // Handle error
+}
+```
+
+**Common Edge Cases/Problems**
+* **Floating-point to/from Integral**: Not limited to integral-to-integral or floating-point-to-floating-point
+* **NaN Handling**: Specifically throws when converting `NaN` to integers, but allows `NaN` when casting between float types.
+* **Precision Loss**: Includes specialized logic to detect if a large floating point value exceeds the exact representable range of a target integer.
+
+**Differences with Alternatives**
+* **vs static_cast**: `static_cast` silently truncates or wraps; `numeric_cast` ensures data integrity.
+* **vs boost::numeric_cast**: Updated for C++23 concepts and handles floating-point/integral crossovers with higher precision.
+
+---
+
+### felly::scope_exit, scope_fail, scope_success
+
+**Overview**
+RAII guards that execute a callback when the current scope exits. Variants allow execution always, only on exception (`scope_fail`), or only on success (`scope_success`).
+
+**Example**
+```cpp
+#include <felly/scope_exit.hpp>
+
+void process() {
+    auto* ptr = malloc(1024);
+    felly::scope_exit cleanup([&]{ free(ptr); });
+    
+    felly::scope_fail on_error([&]{ std::print("Operation failed!"); });
+}
+```
+
+**Common Edge Cases/Problems**
+* **Double Execution**: The `.release()` method allows you to cancel the callback (e.g., if ownership is transferred).
+---
+
+### felly::moved_flag
+
+**Overview**
+
+A simple boolean wrapper that automatically sets itself to `true` when the containing object is moved, simplifying destructor logic.
+
+**Example**
+```cpp
+#include <felly/moved_flag.hpp>
+
+struct MyResource {
+    felly::moved_flag moved;
+    ~MyResource() {
+        if (moved) return;
+        // Perform cleanup
+        // ...
+    }
+    // ...
+};
+```
+
+---
+
+### felly::non_copyable
+
+**Overview**
+A base class or member that disables copy constructors and assignments while explicitly enabling move semantics and modern comparisons.
+
+**Example**
+```cpp
+#include <felly/non_copyable.hpp>
+
+struct MyType : felly::non_copyable {
+    // MyType is moveable, but cannot be copied
+};
+```
+
+**Differences with Alternatives**
+* **vs boost::noncopyable**: Boost's version often disables moves; `felly::non_copyable` is move-friendly, and also supports `operator<=>`.
+
+---
+
+### felly::overload
+
+**Overview**
+A helper for the "overload pattern," allowing you to pass multiple lambdas to `std::visit` to handle different types in a `std::variant`.
+
+**Example**
+
+```cpp
+#include <felly/overload.hpp>
+#include <variant>
+
+std::variant<int, float> v = 10;
+std::visit(felly::overload {
+    [](int i) { /* ... */ },
+    [](float f) { /* ... */ }
+}, v);
+```
+
+**Common Edge Cases/Problems**
+* **Exhaustiveness**: Using this with `std::visit` ensures you get a compiler error if a variant type is not handled.
+
+**Differences with Alternatives**
+* **vs Custom Struct**: Replaces the manual boilerplate of creating a struct that inherits from multiple lambdas.
+
+---
+
+### Macros and Versioning
+
+#### FELLY_NO_UNIQUE_ADDRESS
+* **Include**: `#include <felly/no_unique_address.hpp>`
+* **Overview**: Provides a cross-platform way to use `[[no_unique_address]]`.
+* **Problem**: MSVC recognizes the standard attribute but ignores it for ABI compatibility; this macro uses `[[msvc::no_unique_address]]` on MSVC to ensure space optimization actually occurs.
+
+#### FELLY_CPLUSPLUS
+* **Include**: `#include <felly/version.hpp>`
+* **Overview**: A reliable version of the `__cplusplus` macro.
+* **Problem**: Fixes cases where MSVC reports `199711L` or where `clang-cl` and CMake interact to report the wrong standard version.
+
+---
 
 ## License
 
