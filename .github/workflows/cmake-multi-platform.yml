@@ -32,7 +32,7 @@ jobs:
             cxx_compiler: cl
           - os: macos-latest
             cxx_compiler: clang-cl
-        steps:
+    steps:
     - uses: actions/checkout@v4
     - name: Setup environment
       uses: ./.github/actions/configure-environment
