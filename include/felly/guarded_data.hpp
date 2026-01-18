@@ -4,6 +4,7 @@
 
 #include <mutex>
 #include <print>
+#include <utility>
 
 namespace felly::inline guarded_data_types {
 

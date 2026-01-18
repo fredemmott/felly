@@ -2,6 +2,7 @@ find_package(Catch2 CONFIG REQUIRED)
 
 add_executable(
   tests
+  guarded_data.cpp
   moved_flag.cpp
   no_unique_address.cpp
   non_copyable.cpp
