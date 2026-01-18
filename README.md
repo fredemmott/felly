@@ -8,6 +8,14 @@ components should be their own libraries. It should not contain platform-specifi
 
 My current overall goal is to reduce duplication between my own projects.
 
+This library currently targets C++23, and is tested on:
+
+- **Windows**: VS 2022 cl 19.44, clang-cl 19.1.5
+- **Linux**: G++ 14.2.0, clang++ 18.1.3
+- **macOS**: Apple Clang 17.0.0
+
+I expect this library to continue to target modern compilers; once it's past v0.x, I plan to increase the major version when increasing the required C++ standard or reducing compiler support, except when dropping platforms that have reached their upstream end-of-life.
+
 ## Using this library
 
 `vcpkg` is recommended (see below); otherwise, make the `include/` subdirectory of this repository available to your build system. That's it.
@@ -96,6 +104,7 @@ unique_fd my_fd(open("test.txt", O_RDONLY));
 * **consistent handling for opaque types which vary by platform**: for example, `locale_t` is a pointer on *some* platforms, and a value on others
 
 **Differences with Alternatives**
+* Ownership can be released via `disown()`, which returns the (moved) underlying value; this is equivalent to `std::unique_ptr`'s `release()`. I've renamed it due to repeatedly coming across code that leaks by accidentally calling `release()` (disown) when `reset()` (delete/cleanup) was intended.
 * **vs std::unique_ptr**: `unique_ptr` is strictly for pointers and uses `nullptr` as the only empty state. `unique_any` is generic for any type and any "invalid" predicate.
 * **vs most other `unique_any`**: most of these can only hold *values*, or require that invalid values are compile-time constants. `-1` is a common invalid value, but is an invalid compile-time value for any pointer type
 
