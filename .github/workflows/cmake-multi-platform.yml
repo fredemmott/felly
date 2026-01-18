@@ -3,9 +3,8 @@ name: CMake on multiple platforms
 on:
   push:
     branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
-
+permissions:
+  packages: write
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -29,6 +28,11 @@ jobs:
             cxx_compiler: clang-cl
     steps:
     - uses: actions/checkout@v4
+    - name: Setup environment
+      uses: ./.github/actions/configure-environment
+      with:
+        arch: x64
+        github_token: ${{ secrets.GITHUB_TOKEN }}
     - name: Configure CMake
       shell: pwsh
       run: |
