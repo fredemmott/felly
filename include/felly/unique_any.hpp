@@ -220,7 +220,7 @@ struct unique_any {
     if constexpr (std::is_pointer_v<T>) {
       return self.storage.value();
     } else {
-      return std::forward_like<Self>(&self.storage.value());
+      return &self.storage.value();
     }
   }
 

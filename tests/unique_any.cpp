@@ -418,7 +418,6 @@ TEST_CASE("unique_any - aggregates") {
   struct value_type : felly::non_copyable {
     constexpr value_type() = default;
     constexpr explicit value_type(const int value) : value {value} {}
-
     int value {};
     constexpr operator bool() const noexcept { return value != 0; }
     constexpr bool operator==(const value_type&) const noexcept = default;
@@ -431,6 +430,11 @@ TEST_CASE("unique_any - aggregates") {
     Tracker::call_count++;
     Tracker::last_value = p.value;
   }>;
+  using const_test_type =
+    felly::unique_any<const value_type, [](const value_type& p) {
+      Tracker::call_count++;
+      Tracker::last_value = p.value;
+    }>;
 
   SECTION("is-valid") {
     CHECK_FALSE(test_type {std::in_place});
@@ -467,7 +471,13 @@ TEST_CASE("unique_any - aggregates") {
 
   SECTION("get") {
     constexpr auto value = __LINE__;
-    CHECK(test_type {std::in_place, value}.get() == value);
+    auto u = test_type {std::in_place, value};
+    CHECK(u.get().value == value);
+
+    using TGet = decltype(u.get());
+    STATIC_CHECK(std::is_reference_v<TGet>);
+    STATIC_CHECK_FALSE(std::is_pointer_v<TGet>);
+    STATIC_CHECK(std::is_const_v<std::remove_reference_t<TGet>>);
   }
 
   SECTION("disown") {
@@ -475,5 +485,43 @@ TEST_CASE("unique_any - aggregates") {
     const auto ret = test_type {std::in_place, value}.disown();
     STATIC_CHECK(std::same_as<value_type, std::remove_cvref_t<decltype(ret)>>);
     CHECK(ret.value == value);
+  }
+
+  SECTION("deleter not called for invalid") {
+    Tracker::reset();
+    std::ignore = test_type {std::in_place};
+    CHECK(Tracker::call_count == 0);
+  }
+  SECTION("deleter called for valid") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    std::ignore = test_type {std::in_place, value};
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+
+  SECTION("moveable to const") {
+    Tracker::reset();
+    constexpr auto value1 = __LINE__;
+    constexpr auto value2 = __LINE__;
+    {
+      auto orig = test_type {std::in_place, value1};
+      CHECK(orig);
+      CHECK(orig->value == value1);
+      auto moved_mutable = std::move(orig);
+      CHECK_FALSE(orig);
+      CHECK(moved_mutable);
+      CHECK(moved_mutable->value == value1);
+      moved_mutable->value = value2;
+      const_test_type moved_const = std::move(moved_mutable);
+      CHECK_FALSE(moved_mutable);
+      CHECK(moved_const);
+
+      STATIC_CHECK(!std::is_assignable_v<decltype((moved_const->value)), int>);
+      STATIC_CHECK(std::is_assignable_v<decltype((moved_mutable->value)), int>);
+      CHECK(Tracker::call_count == 0);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value2);
   }
 }
