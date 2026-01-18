@@ -8,6 +8,28 @@ components should be their own libraries. It should not contain platform-specifi
 
 My current overall goal is to reduce duplication between my own projects.
 
+## Using this library
+
+`vcpkg` is recommended (see below); otherwise, make the `include/` subdirectory of this repository available to your build system. That's it.
+
+`felly` is available in [my vcpkg registry](https://github.com/fredemmott/vcpkg-registry); add `felly` to your `vcpkg.json` as usual, and add the registry to your `vcpkg-configuration.json`, e.g.:
+
+```json
+{
+  "registries": [
+    {
+      "kind": "git",
+      "repository": "https://github.com/fredemmott/vcpkg-registry",
+      "reference": "master",
+      "baseline": "REGISTRY_COMMIT_HASH_GOES_HERE",
+      "packages": [
+        "felly"
+      ]
+    }
+  ]
+}
+```
+
 ## Components
 
 ---
