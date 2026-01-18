@@ -27,12 +27,13 @@ jobs:
             cxx_compiler: cl
           - os: ubuntu-latest
             cxx_compiler: clang-cl
-
     steps:
     - uses: actions/checkout@v4
     - name: Configure CMake
+      shell: pwsh
       run: >
         cmake -B build/
+        "-DCMAKE_TOOLCHAIN_FILE=$($Env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake)"
         -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -S ${{ github.workspace }}
