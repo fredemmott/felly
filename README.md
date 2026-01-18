@@ -237,6 +237,17 @@ unique_fd my_fd(open("test.txt", O_RDONLY));
 * **vs std::unique_ptr**: `unique_ptr` is strictly for pointers and uses `nullptr` as the only empty state. `unique_any` is generic for any type and any "invalid" predicate.
 * **vs most other `unique_any`**: most of these can only hold *values*, or require that invalid values are compile-time constants. `-1` is a common invalid value, but is an invalid compile-time value for any pointer type
 
+**Notes**
+
+`unique_any` has no default constructor, as the expected behavior is unclear for `unique_any<T>` vs `unique_any<T*>`:
+
+- option A: both default-construct the parameter, i.e. `unique_any<T>` is initialized to `T {}` and `unique_any<T*>` is initialized to `nullptr`
+- option B: both are *empty*
+
+Instead:
+
+- use `unique_any<T> { std::nullopt }` for an empty state; `unique_any<T> { nullptr }` is also supported for pointer types
+- use `unique_any<T> { std::in_place }` for a default-initialized *value*. This is not supported for pointer types.
 ---
 
 ### Macros and Versioning

@@ -154,6 +154,8 @@ struct unique_any {
   unique_any(const unique_any&) = delete;
   unique_any& operator=(const unique_any&) = delete;
 
+  constexpr explicit unique_any(std::nullopt_t) noexcept {}
+
   template <std::convertible_to<T> U>
   explicit constexpr unique_any(U&& value) {
     if (std::invoke(TPredicate, value)) {

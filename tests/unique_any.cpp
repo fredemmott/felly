@@ -84,6 +84,8 @@ TEST_CASE("unique_any - basic values") {
 
       CHECK(valid);
       CHECK_FALSE(invalid);
+
+      CHECK_FALSE(unique_fd_like {std::nullopt});
     }
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == 0);
@@ -273,6 +275,7 @@ TEST_CASE("unique_any - standard pointers") {
 
   SECTION("is-valid") {
     CHECK_FALSE(test_type {nullptr});
+    CHECK_FALSE(test_type {std::nullopt});
     CHECK(test_type {new WithTrackedDestructor()});
   }
 
@@ -334,6 +337,7 @@ TEST_CASE("unique_any - -1 pointers") {
 
   SECTION("comparison with nullptr") {
     CHECK(test_type {Invalid} == nullptr);
+    CHECK(test_type {nullptr} == test_type {std::nullopt});
     CHECK(test_type {nullptr} == Invalid);
     CHECK(test_type {nullptr} == test_type {Invalid});
     CHECK(test_type {nullptr} == nullptr);
