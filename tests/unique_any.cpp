@@ -435,6 +435,10 @@ TEST_CASE("unique_any - aggregates") {
       Tracker::call_count++;
       Tracker::last_value = p.value;
     }>;
+  using by_address_test_type = felly::unique_any<value_type, [](value_type* p) {
+    Tracker::call_count++;
+    Tracker::last_value = p->value;
+  }>;
 
   SECTION("is-valid") {
     CHECK_FALSE(test_type {std::in_place});
@@ -523,5 +527,17 @@ TEST_CASE("unique_any - aggregates") {
     }
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == value2);
+  }
+
+  SECTION("cleanup by address") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    {
+      by_address_test_type u {std::in_place, value};
+      CHECK(u.get().value == value);
+      CHECK(Tracker::call_count == 0);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
   }
 }

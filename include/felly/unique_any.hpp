@@ -20,7 +20,33 @@ concept const_promotion_to = (!std::same_as<To, From>)
                     const std::remove_pointer_t<From>*,
                     const std::remove_pointer_t<From>>>;
 
-}
+template <class T, auto TDeleter>
+struct invoke_as_deleter {
+  static void operator()(T x)
+    requires std::is_pointer_v<T> && std::invocable<decltype(TDeleter), T>
+  {
+    std::invoke(TDeleter, x);
+  }
+
+  static void operator()(T& x)
+    requires(!std::is_pointer_v<T>) && std::invocable<decltype(TDeleter), T&>
+  {
+    std::invoke(TDeleter, x);
+  }
+
+  static void operator()(T& x)
+    requires(!std::is_pointer_v<T>) && std::invocable<decltype(TDeleter), T*>
+    && (!std::invocable<decltype(TDeleter), T&>)
+  {
+    std::invoke(TDeleter, std::addressof(x));
+  }
+};
+
+template <auto TDeleter, class T>
+concept invocable_as_deleter = std::invocable<invoke_as_deleter<T, TDeleter>, T>
+  || std::invocable<invoke_as_deleter<T, TDeleter>, T&>;
+
+}// namespace felly_detail
 
 namespace felly::inline unique_any_types {
 
@@ -118,8 +144,9 @@ struct unique_any_storage<T> : unique_any_pointer_storage<T> {};
  */
 template <
   class T,
-  std::invocable<T> auto TDeleter,
+  auto TDeleter,
   std::predicate<T> auto TPredicate = std::identity {}>
+  requires felly_detail::invocable_as_deleter<TDeleter, T>
 struct unique_any {
   using storage_type = unique_any_storage<T>;
 
@@ -158,7 +185,7 @@ struct unique_any {
 
   constexpr void reset() noexcept {
     if (has_value()) {
-      std::invoke(TDeleter, storage.value());
+      felly_detail::invoke_as_deleter<T, TDeleter> {}(storage.value());
     }
     storage.reset();
   }

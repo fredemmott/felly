@@ -230,6 +230,7 @@ unique_fd my_fd(open("test.txt", O_RDONLY));
 * **Const promotion**: Supports moving a non-const handle into a const-handle container.
 * **Storage overhead**: Uses a specialized pointer storage optimization to avoid `std::optional` overhead when the underlying type is a pointer.
 * **consistent handling for opaque types which vary by platform**: for example, `locale_t` is a pointer on *some* platforms, and a value on others
+* **By-address cleanup of values**: Some APIs require you to create `foo_t foo;`, and pass `&foo` to a 'cleanup' function
 
 **Differences with Alternatives**
 * Ownership can be released via `disown()`, which returns the (moved) underlying value; this is equivalent to `std::unique_ptr`'s `release()`. I've renamed it due to repeatedly coming across code that leaks by accidentally calling `release()` (disown) when `reset()` (delete/cleanup) was intended.
