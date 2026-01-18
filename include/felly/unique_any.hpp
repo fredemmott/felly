@@ -302,4 +302,16 @@ struct unique_any {
   }
 };
 
+// `std::out_ptr` is supported for this
+template <class T, auto TDeleter, auto TPredicate = std::identity {}>
+struct unique_ptr : unique_any<T*, TDeleter, TPredicate> {
+  using pointer = T*;
+  using element_type = T;
+
+  using unique_any<T*, TDeleter, TPredicate>::unique_any;
+
+  constexpr unique_ptr()
+    : unique_any<T*, TDeleter, TPredicate> {std::nullopt} {}
+};
+
 }// namespace felly::inline unique_any_types

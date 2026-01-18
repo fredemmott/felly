@@ -268,15 +268,36 @@ TEST_CASE("unique_any - basic values") {
 }
 
 TEST_CASE("unique_any - standard pointers") {
-  using test_type = felly::unique_any<
-    WithTrackedDestructor*,
+  using test_type = felly::unique_ptr<
+    WithTrackedDestructor,
     std::default_delete<WithTrackedDestructor> {}>;
+  static_assert(std::derived_from<
+                test_type,
+                felly::unique_any<
+                  WithTrackedDestructor*,
+                  std::default_delete<WithTrackedDestructor> {}>>);
   SECTION("size") { STATIC_CHECK(sizeof(test_type) == sizeof(void*)); }
 
   SECTION("is-valid") {
     CHECK_FALSE(test_type {nullptr});
     CHECK_FALSE(test_type {std::nullopt});
     CHECK(test_type {new WithTrackedDestructor()});
+  }
+
+  SECTION("std::out_ptr") {
+    Tracker::reset();
+    constexpr auto value = __LINE__;
+    {
+      test_type v {std::nullopt};
+      [](WithTrackedDestructor** pp) {
+        *pp = new WithTrackedDestructor(value);
+      }(std::out_ptr(v));
+      CHECK(v);
+      CHECK(v->value == value);
+      CHECK(Tracker::call_count == 0);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
   }
 
   SECTION("destructor called") {
