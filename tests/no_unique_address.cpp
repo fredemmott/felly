@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 #include <catch2/catch_all.hpp>
 #include <felly/no_unique_address.hpp>
-#include <type_traits>
 
 struct Empty {};
 

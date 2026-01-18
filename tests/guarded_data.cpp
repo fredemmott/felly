@@ -50,7 +50,7 @@ TEST_CASE("guarded_data thread safety", "[guarded_data]") {
     constexpr int Iterations = 10000;
     std::atomic<std::size_t> races = 0;
 
-    auto increment_task = [&]() {
+    auto increment_task = [&] {
       for (int i = 0; i < Iterations; ++i) {
         auto lock = flag.lock();
         if (*lock) ++races;

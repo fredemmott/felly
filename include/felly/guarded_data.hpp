@@ -3,13 +3,14 @@
 #pragma once
 
 #include <mutex>
-#include <print>
 #include <utility>
 
 namespace felly::inline guarded_data_types {
 
 template <class T>
 struct unique_guarded_data_lock {
+  unique_guarded_data_lock() = delete;
+
   unique_guarded_data_lock(std::unique_lock<std::mutex> lock, T* data)
     : mLock(std::move(lock)),
       mData(data) {}
@@ -57,8 +58,6 @@ struct unique_guarded_data_lock {
   }
 
  private:
-  unique_guarded_data_lock() = delete;
-
   std::unique_lock<std::mutex> mLock;
   T* mData;
 };
@@ -72,10 +71,12 @@ struct guarded_data {
   template <class... Args>
   explicit guarded_data(Args&&... args) : mData {std::forward<Args>(args)...} {}
 
+  [[nodiscard]]
   auto lock() {
     return unique_guarded_data_lock<T>(std::unique_lock {mMutex}, &mData);
   }
 
+  [[nodiscard]]
   auto lock() const {
     return unique_guarded_data_lock<const T>(std::unique_lock {mMutex}, &mData);
   }

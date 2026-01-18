@@ -20,11 +20,10 @@ enum class basic_scope_exit_execution_policy {
   OnSuccess,
 };
 
-// Roughly equivalent to `std::experimental::scope_exit`, but that isn't wideley
+// Roughly equivalent to `std::experimental::scope_exit`, but that isn't widely
 // available yet
 template <basic_scope_exit_execution_policy TWhen, std::invocable<> TCallback>
-class basic_scope_exit {
- private:
+class [[nodiscard]] basic_scope_exit {
   using enum basic_scope_exit_execution_policy;
   FELLY_NO_UNIQUE_ADDRESS
   std::conditional_t<TWhen != Always, int, empty> mInitialUncaught {};

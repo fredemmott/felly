@@ -43,11 +43,11 @@ I expect this library to continue to target modern compilers; once it's past v0.
 - [felly::guarded_data](#fellyguarded_data): Monitor-pattern/totally not a Rust mutex
 - [felly::moved_flag](#fellymoved_flag): Marker to simplify destructors of moveable objects
 - [felly::non_copyable](#fellynon_copyable): Supertype or member to ban copying while allowing moving
-- [felly::numeric_cast](#fellynumeric_cast): Cast between numeric types (including integral types <-> floating point types) with bounds and other error checks 
+- [felly::numeric_cast](#fellynumeric_cast): Cast between numeric types (including integral types ↔ floating point types) with bounds and other error checks 
 - [felly::overload](#fellyoverload): Helper for `std::visit()` on `std::variant` with compiler exhaustiveness checks
 - [felly::scope_exit, scope_fail, scope_success](#fellyscope_exit-scope_fail-scope_success): RAII helpers for executing code when the current scope ends
 - [felly::unique_any](#fellyunique_any): Like `std::unique_ptr`, but for any type, or pointers with invalid values other than `nullptr`
-- [FELLY_CPLUSPLUS](#fellycpp): Like `__cplusplus`, but works around Microsoft decisions and clang-cl quirks to give consistently correct results
+- [FELLY_CPLUSPLUS](#felly_cplusplus): Like `__cplusplus`, but works around Microsoft decisions and clang-cl quirks to give consistently correct results
 - [FELLY_NO_UNIQUE_ADDRESS](#felly_no_unique_address): Like `[[no_unique_address]]`, but uses `[[msvc::no_unique_address]]` where available to work around Microsoft's decision to make `[[no_unique_address]]` a no-op to preserve ABI compatibility
 
 ---
