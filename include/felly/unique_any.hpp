@@ -260,6 +260,21 @@ struct unique_any {
   }
 
   [[nodiscard]]
+  constexpr decltype(auto) operator&(this auto&& self)
+    requires(!std::is_pointer_v<T>)
+  {
+    return std::addressof(self.get());
+  }
+
+  /** You probably want `get()` instead.
+   *
+   * If you *really* want it, use `std::addressof(foo.get())`
+   */
+  constexpr void operator&(this auto&& self)
+    requires(std::is_pointer_v<T>)
+  = delete;
+
+  [[nodiscard]]
   constexpr decltype(auto) operator*(this auto&& self) {
     return self.get();
   }

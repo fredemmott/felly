@@ -74,6 +74,17 @@ TEST_CASE("unique_any - basic values") {
     CHECK(*unique_fd_like {v2} == v2);
   }
 
+  SECTION("operator& const correctness") {
+    STATIC_CHECK(std::is_const_v<unique_fd_like::type>);
+    constexpr auto value = __LINE__;
+    unique_fd_like u {value};
+    auto p = &u;
+    STATIC_CHECK(std::is_pointer_v<decltype(p)>);
+    STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(*p)>>);
+    STATIC_CHECK(std::is_same_v<decltype(p), unique_fd_like::type*>);
+    CHECK(*p == value);
+  }
+
   SECTION("is-valid test") {
     Tracker::reset();
     {
@@ -465,6 +476,18 @@ TEST_CASE("unique_any - aggregates") {
     std::ignore = test_type {std::in_place, value};
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == value);
+  }
+
+  SECTION("operator&") {
+    constexpr auto v1 = __LINE__;
+    constexpr auto v2 = __LINE__;
+    auto u = test_type {std::in_place, v1};
+    auto p = &u;
+    CHECK(u->value == v1);
+    CHECK(p->value == v1);
+    STATIC_CHECK(std::is_pointer_v<decltype(p)>);
+    p->value = v2;
+    CHECK(u->value == v2);
   }
 
   SECTION("moveable") {
