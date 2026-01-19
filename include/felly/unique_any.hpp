@@ -52,6 +52,21 @@ template <auto TDeleter, class T>
 concept invocable_as_deleter = std::invocable<invoke_as_deleter<T, TDeleter>, T>
   || std::invocable<invoke_as_deleter<T, TDeleter>, T&>;
 
+// clang++18 considers `std::forward_like` here to be a use-before-defined
+template <class T, class U>
+constexpr decltype(auto) unique_any_forward_like(U&& u) {
+  using return_type = std::conditional_t<
+    std::is_const_v<std::remove_reference_t<T>>,
+    const std::remove_reference_t<U>,
+    std::remove_reference_t<U>>;
+
+  if constexpr (std::is_lvalue_reference_v<T>) {
+    return static_cast<return_type&>(u);
+  } else {
+    return static_cast<return_type&&>(u);
+  }
+}
+
 }// namespace felly_detail
 
 namespace felly::inline unique_any_types {
@@ -67,18 +82,7 @@ class unique_any_optional_storage {
   }
   template <class Self>
   [[nodiscard]] constexpr decltype(auto) value(this Self&& self) {
-    // clang++18 considers `std::forward_like` here to be a use-before-defined
-    using result_type = std::conditional_t<
-      std::is_lvalue_reference_v<Self>,
-      std::add_lvalue_reference_t<std::conditional_t<
-        std::is_const_v<std::remove_reference_t<Self>>,
-        const T,
-        T>>,
-      std::add_rvalue_reference_t<std::conditional_t<
-        std::is_const_v<std::remove_reference_t<Self>>,
-        const T,
-        T>>>;
-    return static_cast<result_type>(self.storage.value());
+    return felly_detail::unique_any_forward_like<Self>(self.storage.value());
   }
 
   constexpr void reset() noexcept { storage.reset(); }
@@ -110,8 +114,9 @@ class unique_any_direct_storage {
 
  public:
   [[nodiscard]] constexpr bool has_value() const noexcept { return true; }
-  [[nodiscard]] constexpr auto& value(this auto&& self) noexcept {
-    return self.storage;
+  template <class Self>
+  [[nodiscard]] constexpr decltype(auto) value(this Self&& self) noexcept {
+    return felly_detail::unique_any_forward_like<Self>(self.storage);
   }
   constexpr void reset() noexcept {
     if constexpr (std::is_trivially_copyable_v<T>) {
@@ -150,6 +155,34 @@ template <class T>
   requires std::is_pointer_v<T>
 struct unique_any_storage<T> : unique_any_direct_storage<T> {};
 
+template <typename S, typename T>
+concept unique_any_storage_for = requires(S& s, S&& rs, const S& cs) {
+  { cs.has_value() } -> std::convertible_to<bool>;
+  { s.reset() } -> std::same_as<void>;
+  { s.emplace(std::declval<T>()) } -> std::same_as<void>;
+  { s.value() } -> std::convertible_to<T&>;
+  { cs.value() } -> std::convertible_to<const T&>;
+  { std::move(s).value() } -> std::convertible_to<T&&>;
+};
+
+template <typename T>
+concept unique_any_traits =
+  requires {
+    typename T::value_type;
+    typename T::storage_type;
+  }
+  && unique_any_storage_for<
+    typename T::storage_type,
+    std::remove_const_t<typename T::value_type>>
+  && requires(
+    typename T::storage_type& storage,
+    typename T::value_type& value,
+    const typename T::value_type& c_value) {
+       { T::destroy(value) } -> std::same_as<void>;
+       { T::has_value(c_value) } -> std::convertible_to<bool>;
+       { T::emplace(storage, std::move(value)) } -> std::same_as<void>;
+     };
+
 template <
   class T,
   auto Deleter,
@@ -187,7 +220,7 @@ struct basic_unique_any_traits {
  * Casting -1 to a pointer is never valid in constexpr, so we need this slightly
  * more verbose API.
  */
-template <class TTraits>
+template <unique_any_traits TTraits>
 struct basic_unique_any {
   using value_type = TTraits::value_type;
   using storage_type = TTraits::storage_type;
