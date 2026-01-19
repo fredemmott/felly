@@ -13,14 +13,14 @@ namespace felly::inline unique_ptr_types {
  * - supports `std::out_ptr` and `std::inout_ptr`
  */
 template <class T, auto TDeleter, auto TPredicate = std::identity {}>
-struct unique_ptr : unique_any<T*, TDeleter, TPredicate> {
+struct unique_ptr : unique_any<T* const, TDeleter, TPredicate> {
   using pointer = T*;
   using element_type = T;
 
-  using unique_any<T*, TDeleter, TPredicate>::unique_any;
+  using unique_any<T* const, TDeleter, TPredicate>::unique_any;
 
   constexpr unique_ptr()
-    : unique_any<T*, TDeleter, TPredicate> {std::nullopt} {}
+    : unique_any<T* const, TDeleter, TPredicate> {std::nullopt} {}
 };
 }// namespace felly::inline unique_ptr_types
 

@@ -309,8 +309,9 @@ TEST_CASE("unique_any - standard pointers") {
     constexpr auto value = __LINE__;
     auto u = test_type {new WithTrackedDestructor(value)};
     using TGet = decltype(u.get());
-    STATIC_CHECK(!std::is_reference_v<TGet>);
-    STATIC_CHECK(std::is_pointer_v<TGet>);
+    STATIC_CHECK(std::same_as<TGet, WithTrackedDestructor*&>);
+    STATIC_CHECK(std::is_reference_v<TGet>);
+    STATIC_CHECK(std::is_pointer_v<std::remove_reference_t<TGet>>);
     CHECK(u.get()->value == value);
   }
 
@@ -511,8 +512,7 @@ TEST_CASE("unique_any - aggregates") {
     CHECK(u.get().value == value);
 
     using TGet = decltype(u.get());
-    STATIC_CHECK(std::is_reference_v<TGet>);
-    STATIC_CHECK_FALSE(std::is_pointer_v<TGet>);
+    STATIC_CHECK(std::same_as<TGet, value_type&>);
     u.get().value = 123;
   }
 

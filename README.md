@@ -225,7 +225,7 @@ using unique_fd = felly::unique_any<
 unique_fd my_fd(open("test.txt", O_RDONLY));
 ```
 
-`unique_fd` is defined as `const int` here to allow replacing it via `reset()`, but not allow mutating it via a `get()` reference.
+`unique_fd` is defined as `const int` here to allow replacing it via `reset()`, but not allow mutating it via a `get()` reference; you also generally want `unique_any<T* const>` for pointers.
 
 **Common Edge Cases/Problems**
 * **'Special' pointers**: Perfect for Win32 `HANDLE`s where `INVALID_HANDLE_VALUE` is possible
@@ -234,6 +234,7 @@ unique_fd my_fd(open("test.txt", O_RDONLY));
 * **Storage overhead**: Uses a specialized pointer storage optimization to avoid `std::optional` overhead when the underlying type is a pointer.
 * **consistent handling for opaque types which vary by platform**: for example, `locale_t` is a pointer on *some* platforms, and a value on others
 * **By-address cleanup of values**: Some APIs require you to create `foo_t foo;`, and pass `&foo` to a 'cleanup' function
+* **Pointers-to-const**: `unique_any<const T* foo, &c_deleter>` will implicitly `const_cast<T*>` when calling the deleter if required
 
 **Differences with Alternatives**
 * Ownership can be released via `disown()`, which returns the (moved) underlying value; this is equivalent to `std::unique_ptr`'s `release()`. I've renamed it due to repeatedly coming across code that leaks by accidentally calling `release()` (disown) when `reset()` (delete/cleanup) was intended.
@@ -258,7 +259,7 @@ Instead:
 
 ### felly::unique_ptr
 
-**Overview**: Specialization of `unique_any`, adding a default constructor (initializing to empty/`nullptr`), and support for `std::out_ptr` and `std::inout_ptr`. This is especially useful for interopation with C APIs, including the Win32 APIs.
+**Overview**: Specialization of `unique_any<T* const>`, adding a default constructor (initializing to empty/`nullptr`), and support for `std::out_ptr` and `std::inout_ptr`. This is especially useful for interopation with C APIs, including the Win32 APIs.
 
 **Example**:
 

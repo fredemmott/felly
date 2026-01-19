@@ -30,12 +30,41 @@ struct MyType {
 // Not duplicating the unique_any<T*> tests - just testing the add-ons
 TEST_CASE("unique_ptr") {
   using test_type = felly::unique_ptr<MyType, std::default_delete<MyType> {}>;
+  using const_test_type =
+    felly::unique_ptr<const MyType, std::default_delete<MyType> {}>;
   SECTION("static checks") {
     STATIC_CHECK(
       std::derived_from<
         test_type,
-        felly::unique_any<MyType*, std::default_delete<MyType> {}>>);
+        felly::unique_any<MyType* const, std::default_delete<MyType> {}>>);
     STATIC_CHECK(sizeof(test_type) == sizeof(void*));
+  }
+  SECTION("get() is reference to const pointer") {
+    constexpr auto value = __LINE__;
+    {
+      test_type v {new MyType(value)};
+      using U = decltype(v.get());
+      STATIC_CHECK(std::same_as<U, MyType* const&>);
+    }
+    {
+      const_test_type v {new MyType(value)};
+      using U = decltype(v.get());
+      STATIC_CHECK(std::same_as<U, const MyType* const&>);
+    }
+  }
+
+  SECTION("operator& is pointer to immutable pointer") {
+    constexpr auto value = __LINE__;
+    {
+      test_type v {new MyType(value)};
+      using U = decltype(&v);
+      STATIC_CHECK(std::same_as<U, MyType* const*>);
+    }
+    {
+      const_test_type v {new MyType(value)};
+      using U = decltype(&v);
+      STATIC_CHECK(std::same_as<U, const MyType* const*>);
+    }
   }
 
   SECTION("std::out_ptr") {

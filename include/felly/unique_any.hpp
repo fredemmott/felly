@@ -8,7 +8,6 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
-#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -24,10 +23,15 @@ concept const_promotion_to = (!std::same_as<To, From>)
 
 template <class T, auto TDeleter>
 struct invoke_as_deleter {
+  // Allow `c_deleter(T *)` for a `const T*`
   static void operator()(T x)
-    requires std::is_pointer_v<T> && std::invocable<decltype(TDeleter), T>
+    requires std::is_pointer_v<T>
+    && std::invocable<
+               decltype(TDeleter),
+               std::remove_const_t<std::remove_pointer_t<T>>*>
   {
-    std::invoke(TDeleter, x);
+    std::invoke(
+      TDeleter, const_cast<std::remove_const_t<std::remove_pointer_t<T>>*>(x));
   }
 
   static void operator()(T& x)
@@ -111,7 +115,9 @@ class unique_any_pointer_storage {
 
  public:
   [[nodiscard]] constexpr bool has_value() const noexcept { return storage; }
-  [[nodiscard]] constexpr T value() const noexcept { return storage; }
+  [[nodiscard]] constexpr auto& value(this auto&& self) noexcept {
+    return self.storage;
+  }
   constexpr void reset() noexcept { storage = nullptr; }
   constexpr void emplace(const T value) noexcept { storage = value; }
 
@@ -260,19 +266,13 @@ struct unique_any {
   }
 
   [[nodiscard]]
-  constexpr decltype(auto) operator&(this auto&& self)
-    requires(!std::is_pointer_v<T>)
-  {
+  constexpr decltype(auto) operator&(this auto&& self) {
+    // I initially deleted operator& for pointers; I changed to allowing it
+    // so that `unique_any` works consistently with varies-by-platform
+    // types like `locale_t`, which is int-like on some platforms, but a
+    // pointer (void*) on others
     return std::addressof(self.get());
   }
-
-  /** You probably want `get()` instead.
-   *
-   * If you *really* want it, use `std::addressof(foo.get())`
-   */
-  constexpr void operator&(this auto&& self)
-    requires(std::is_pointer_v<T>)
-  = delete;
 
   [[nodiscard]]
   constexpr decltype(auto) operator*(this auto&& self) {
