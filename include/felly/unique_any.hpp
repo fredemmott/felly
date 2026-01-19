@@ -100,31 +100,44 @@ class unique_any_optional_storage {
     default;
 };
 
-/** Storage for any pointer, assuming that `nullptr` is invalid.
+/** Storage for empty-by-default bool-testable values, such as pointers.
  *
- * If additional values are invalid, this should be handled by `unique_any`'s
- * `TPredicate`, and `unique_any` will take responsibility for handling it.
- *
- * The nullptr is only used as an space-saving equivalent to the
- * `std::optional`'s nullopt
+ * This is a space-saving alternative to `unique_any_optional_storage`
  */
 template <class T>
-  requires std::is_pointer_v<T>
-class unique_any_pointer_storage {
+class unique_any_direct_storage {
   T storage {};
 
  public:
-  [[nodiscard]] constexpr bool has_value() const noexcept { return storage; }
+  [[nodiscard]] constexpr bool has_value() const noexcept {
+    return static_cast<bool>(storage);
+  }
   [[nodiscard]] constexpr auto& value(this auto&& self) noexcept {
     return self.storage;
   }
-  constexpr void reset() noexcept { storage = nullptr; }
-  constexpr void emplace(const T value) noexcept { storage = value; }
+  constexpr void reset() noexcept {
+    if constexpr (std::is_trivially_copyable_v<T>) {
+      storage = {};
+    } else {
+      std::destroy_at(&storage);
+      std::construct_at(&storage);
+    }
+  }
+
+  template <std::convertible_to<T> U>
+  constexpr void emplace(U&& value) noexcept {
+    if constexpr (std::is_trivially_assignable_v<T&, U&&>) {
+      storage = std::forward<U>(value);
+    } else {
+      std::destroy_at(&storage);
+      std::construct_at(&storage, std::forward<U>(value));
+    }
+  }
 
   friend constexpr auto operator<=>(
-    const unique_any_pointer_storage&,
-    const unique_any_pointer_storage&) noexcept = default;
-  constexpr bool operator==(const unique_any_pointer_storage&) const noexcept =
+    const unique_any_direct_storage&,
+    const unique_any_direct_storage&) noexcept = default;
+  constexpr bool operator==(const unique_any_direct_storage&) const noexcept =
     default;
 };
 
@@ -137,7 +150,7 @@ template <class T>
 struct unique_any_storage : unique_any_optional_storage<T> {};
 template <class T>
   requires std::is_pointer_v<T>
-struct unique_any_storage<T> : unique_any_pointer_storage<T> {};
+struct unique_any_storage<T> : unique_any_direct_storage<T> {};
 
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *

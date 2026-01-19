@@ -9,6 +9,8 @@
 #include "felly/non_copyable.hpp"
 #include "felly/unique_any.hpp"
 
+#include "felly/numeric_cast.hpp"
+
 namespace {
 
 struct Tracker {
@@ -569,6 +571,24 @@ TEST_CASE("unique_any - aggregates") {
       CHECK(u.get().value == value);
       CHECK(Tracker::call_count == 0);
     }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == value);
+  }
+}
+
+TEST_CASE("unique_any - void*") {
+  // void* and aliases are frequently used as opaque handles
+  using test_type = felly::unique_any<void* const, [](void* const p) {
+    ++Tracker::call_count;
+    Tracker::last_value = felly::numeric_cast<int>(std::bit_cast<intptr_t>(p));
+  }>;
+
+  SECTION("basic behavior") {
+    Tracker::reset();
+    CHECK_FALSE(test_type {nullptr});
+    CHECK(Tracker::call_count == 0);
+    constexpr auto value = __LINE__;
+    CHECK(test_type {std::bit_cast<void*>(static_cast<intptr_t>(value))});
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == value);
   }
