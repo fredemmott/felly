@@ -217,13 +217,15 @@ A resource management container similar to `unique_ptr`, but designed to handle 
 
 // Guarding a file descriptor where -1 is the invalid value
 using unique_fd = felly::unique_any<
-    int, 
+    const int, 
     &close,
-    [](int fd){ return fd >= 0; } // is_valid function (optional)
+    [](const int fd){ return fd >= 0; } // is_valid function (optional)
 >;
 
 unique_fd my_fd(open("test.txt", O_RDONLY));
 ```
+
+`unique_fd` is defined as `const int` here to allow replacing it via `reset()`, but not allow mutating it via a `get()` reference.
 
 **Common Edge Cases/Problems**
 * **'Special' pointers**: Perfect for Win32 `HANDLE`s where `INVALID_HANDLE_VALUE` is possible

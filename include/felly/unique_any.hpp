@@ -150,7 +150,8 @@ template <
   std::predicate<T> auto TPredicate = std::identity {}>
   requires felly_detail::invocable_as_deleter<TDeleter, T>
 struct unique_any {
-  using storage_type = unique_any_storage<T>;
+  using type = T;
+  using storage_type = unique_any_storage<std::remove_const_t<T>>;
 
   unique_any() = delete;
   unique_any(const unique_any&) = delete;
@@ -247,22 +248,29 @@ struct unique_any {
   [[nodiscard]]
   constexpr decltype(auto) get() const {
     require_value();
+    return std::as_const(storage.value());
+  }
+
+  [[nodiscard]]
+  constexpr decltype(auto) get()
+    requires(!std::is_const_v<T>)
+  {
+    require_value();
     return storage.value();
   }
 
   [[nodiscard]]
-  constexpr const T& operator*() {
-    return get();
+  constexpr decltype(auto) operator*(this auto&& self) {
+    return self.get();
   }
 
-  template <class Self>
-  constexpr decltype(auto) operator->(this Self&& self) {
+  constexpr decltype(auto) operator->(this auto&& self) {
     self.require_value();
 
     if constexpr (std::is_pointer_v<T>) {
-      return self.storage.value();
+      return self.get();
     } else {
-      return &self.storage.value();
+      return &self.get();
     }
   }
 

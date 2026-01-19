@@ -52,7 +52,7 @@ constexpr bool Win32HandleIsValid(const void* const handle) {
 
 TEST_CASE("unique_any - basic values") {
   using unique_fd_like =
-    felly::unique_any<int, FDLikeIntDeleter, &FDLikeIntIsValid>;
+    felly::unique_any<const int, FDLikeIntDeleter, &FDLikeIntIsValid>;
 
   SECTION("static checks") {
     STATIC_CHECK(std::swappable<unique_fd_like>);
@@ -490,7 +490,7 @@ TEST_CASE("unique_any - aggregates") {
     using TGet = decltype(u.get());
     STATIC_CHECK(std::is_reference_v<TGet>);
     STATIC_CHECK_FALSE(std::is_pointer_v<TGet>);
-    STATIC_CHECK(std::is_const_v<std::remove_reference_t<TGet>>);
+    u.get().value = 123;
   }
 
   SECTION("disown") {
