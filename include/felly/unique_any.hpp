@@ -100,7 +100,7 @@ class unique_any_optional_storage {
     default;
 };
 
-/** Storage for empty-by-default bool-testable values, such as pointers.
+/** Storage for values that can contain their own empty state, such as pointers.
  *
  * This is a space-saving alternative to `unique_any_optional_storage`
  */
@@ -109,9 +109,7 @@ class unique_any_direct_storage {
   T storage {};
 
  public:
-  [[nodiscard]] constexpr bool has_value() const noexcept {
-    return static_cast<bool>(storage);
-  }
+  [[nodiscard]] constexpr bool has_value() const noexcept { return true; }
   [[nodiscard]] constexpr auto& value(this auto&& self) noexcept {
     return self.storage;
   }
@@ -152,6 +150,32 @@ template <class T>
   requires std::is_pointer_v<T>
 struct unique_any_storage<T> : unique_any_direct_storage<T> {};
 
+template <
+  class T,
+  auto Deleter,
+  std::predicate<T> auto Predicate = std::identity {},
+  class TStorage = unique_any_storage<std::remove_const_t<T>>>
+  requires felly_detail::invocable_as_deleter<Deleter, T>
+struct basic_unique_any_traits {
+  using value_type = T;
+  using storage_type = TStorage;
+
+  template <class U>
+  static constexpr void destroy(U&& value) {
+    felly_detail::invoke_as_deleter<T, Deleter> {}(std::forward<U>(value));
+  }
+
+  template <class U>
+  static constexpr bool has_value(U&& value) noexcept {
+    return static_cast<bool>(std::invoke(Predicate, std::forward<U>(value)));
+  }
+
+  template <class... Args>
+  static constexpr void emplace(storage_type& storage, Args&&... value) {
+    storage.emplace(std::forward<Args>(value)...);
+  }
+};
+
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *
  * For example:
@@ -163,73 +187,68 @@ struct unique_any_storage<T> : unique_any_direct_storage<T> {};
  * Casting -1 to a pointer is never valid in constexpr, so we need this slightly
  * more verbose API.
  */
-template <
-  class T,
-  auto TDeleter,
-  std::predicate<T> auto TPredicate = std::identity {}>
-  requires felly_detail::invocable_as_deleter<TDeleter, T>
-struct unique_any {
-  using type = T;
-  using storage_type = unique_any_storage<std::remove_const_t<T>>;
+template <class TTraits>
+struct basic_unique_any {
+  using value_type = TTraits::value_type;
+  using storage_type = TTraits::storage_type;
 
-  unique_any() = delete;
-  unique_any(const unique_any&) = delete;
-  unique_any& operator=(const unique_any&) = delete;
+  basic_unique_any() = delete;
+  basic_unique_any(const basic_unique_any&) = delete;
+  basic_unique_any& operator=(const basic_unique_any&) = delete;
 
-  constexpr explicit unique_any(std::nullopt_t) noexcept {}
+  constexpr explicit basic_unique_any(std::nullopt_t) noexcept {}
 
-  template <std::convertible_to<T> U>
-  explicit constexpr unique_any(U&& value) {
-    if (std::invoke(TPredicate, value)) {
-      storage.emplace(std::forward<U>(value));
+  template <std::convertible_to<value_type> U>
+  explicit constexpr basic_unique_any(U&& value) {
+    if (TTraits::has_value(value)) {
+      TTraits::emplace(storage, std::forward<U>(value));
     }
   }
 
   template <class... Args>
-    requires(!std::is_pointer_v<T>)
-  explicit constexpr unique_any(std::in_place_t, Args&&... args) {
-    storage.emplace(std::forward<Args>(args)...);
-    if (!std::invoke(TPredicate, storage.value())) {
+    requires(!std::is_pointer_v<value_type>)
+  explicit constexpr basic_unique_any(std::in_place_t, Args&&... args) {
+    TTraits::emplace(storage, std::forward<Args>(args)...);
+    if (!TTraits::has_value(storage.value())) {
       storage.reset();
     }
   }
-  constexpr unique_any(unique_any&& other) noexcept {
+  constexpr basic_unique_any(basic_unique_any&& other) noexcept {
     *this = std::move(other);
   }
 
-  template <
-    felly_detail::const_promotion_to<T> U,
-    auto UDeleter,
-    auto UPredicate>
-  constexpr unique_any(unique_any<U, UDeleter, UPredicate>&& other) noexcept {
+  template <class UTraits>
+    requires felly_detail::
+      const_promotion_to<typename UTraits::value_type, value_type>
+    constexpr basic_unique_any(basic_unique_any<UTraits>&& other) noexcept {
     if (other) {
-      storage.emplace(other.disown());
+      TTraits::emplace(storage, other.disown());
     }
   }
 
   constexpr void reset() noexcept {
     if (has_value()) {
-      felly_detail::invoke_as_deleter<T, TDeleter> {}(storage.value());
+      TTraits::destroy(storage.value());
     }
     storage.reset();
   }
 
-  template <std::convertible_to<T> U>
+  template <std::convertible_to<value_type> U>
   constexpr void reset(U&& u) {
     reset();
-    storage.emplace(std::forward<U>(u));
+    TTraits::emplace(storage, std::forward<U>(u));
   }
 
   // Like std::unique_ptr's `release()`, but more clearly named
   [[nodiscard]]
-  constexpr T disown() {
+  constexpr value_type disown() {
     require_value();
     auto ret = std::move(storage.value());
     storage.reset();
     return std::move(ret);
   }
 
-  constexpr unique_any& operator=(unique_any&& other) noexcept {
+  constexpr basic_unique_any& operator=(basic_unique_any&& other) noexcept {
     if (this == std::addressof(other)) {
       return *this;
     }
@@ -239,22 +258,22 @@ struct unique_any {
     return *this;
   }
 
-  template <
-    felly_detail::const_promotion_to<T> U,
-    auto UDeleter,
-    auto UPredicate>
-  constexpr unique_any& operator=(
-    unique_any<U, UDeleter, UPredicate>&& other) noexcept {
-    static_assert(!std::same_as<T, U>);
+  template <class UTraits>
+  constexpr basic_unique_any& operator=(
+    basic_unique_any<UTraits>&& other) noexcept
+    requires felly_detail::
+      const_promotion_to<typename UTraits::value_type, value_type>
+  {
+    static_assert(!std::same_as<value_type, typename UTraits::value_type>);
 
     reset();
     if (other) {
-      storage.emplace(other.disown());
+      TTraits::emplace(storage, other.disown());
     }
     return *this;
   }
 
-  ~unique_any() { reset(); }
+  ~basic_unique_any() { reset(); }
 
   /** Always-const, as we don't want to allow changing what the deleter needs to
    * do.
@@ -272,7 +291,7 @@ struct unique_any {
 
   [[nodiscard]]
   constexpr decltype(auto) get()
-    requires(!std::is_const_v<T>)
+    requires(!std::is_const_v<value_type>)
   {
     require_value();
     return storage.value();
@@ -281,7 +300,7 @@ struct unique_any {
   [[nodiscard]]
   constexpr decltype(auto) operator&(this auto&& self) {
     // I initially deleted operator& for pointers; I changed to allowing it
-    // so that `unique_any` works consistently with varies-by-platform
+    // so that `basic_unique_any` works consistently with varies-by-platform
     // types like `locale_t`, which is int-like on some platforms, but a
     // pointer (void*) on others
     return std::addressof(self.get());
@@ -295,7 +314,7 @@ struct unique_any {
   constexpr decltype(auto) operator->(this auto&& self) {
     self.require_value();
 
-    if constexpr (std::is_pointer_v<T>) {
+    if constexpr (std::is_pointer_v<value_type>) {
       return self.get();
     } else {
       return &self.get();
@@ -306,20 +325,20 @@ struct unique_any {
 
   [[nodiscard]]
   friend constexpr auto operator<=>(
-    const unique_any& lhs,
-    const unique_any& rhs) noexcept
-    requires std::three_way_comparable<T>
+    const basic_unique_any& lhs,
+    const basic_unique_any& rhs) noexcept
+    requires std::three_way_comparable<value_type>
   = default;
 
   [[nodiscard]]
-  constexpr bool operator==(const unique_any&) const noexcept = default;
+  constexpr bool operator==(const basic_unique_any&) const noexcept = default;
 
   [[nodiscard]]
-  constexpr bool operator==(const T& other) const noexcept
-    requires std::equality_comparable<T>
+  constexpr bool operator==(const value_type& other) const noexcept
+    requires std::equality_comparable<value_type>
   {
     if (!has_value()) {
-      return !std::invoke(TPredicate, other);
+      return !TTraits::has_value(other);
     }
 
     return (storage.value() == other);
@@ -330,7 +349,7 @@ struct unique_any {
 
   [[nodiscard]]
   constexpr bool has_value() const noexcept {
-    return storage.has_value() && std::invoke(TPredicate, storage.value());
+    return storage.has_value() && TTraits::has_value(storage.value());
   }
 
   constexpr void require_value() const {
@@ -339,5 +358,9 @@ struct unique_any {
     }
   }
 };
+
+template <class T, auto TDeleter, auto TPredicate = std::identity {}>
+using unique_any =
+  basic_unique_any<basic_unique_any_traits<T, TDeleter, TPredicate>>;
 
 }// namespace felly::inline unique_any_types

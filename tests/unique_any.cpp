@@ -77,13 +77,13 @@ TEST_CASE("unique_any - basic values") {
   }
 
   SECTION("operator& const correctness") {
-    STATIC_CHECK(std::is_const_v<unique_fd_like::type>);
+    STATIC_CHECK(std::is_const_v<unique_fd_like::value_type>);
     constexpr auto value = __LINE__;
     unique_fd_like u {value};
     auto p = &u;
     STATIC_CHECK(std::is_pointer_v<decltype(p)>);
     STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(*p)>>);
-    STATIC_CHECK(std::is_same_v<decltype(p), unique_fd_like::type*>);
+    STATIC_CHECK(std::is_same_v<decltype(p), unique_fd_like::value_type*>);
     CHECK(*p == value);
   }
 
