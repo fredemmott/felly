@@ -82,8 +82,8 @@ struct negative_pointer_traits {
 
 struct WithTrackedDestructor {
   constexpr WithTrackedDestructor() = default;
-  constexpr WithTrackedDestructor(WithTrackedDestructor&&) = default;
-  constexpr WithTrackedDestructor& operator=(WithTrackedDestructor&&) = default;
+  WithTrackedDestructor(WithTrackedDestructor&&) = default;
+  WithTrackedDestructor& operator=(WithTrackedDestructor&&) = default;
   explicit constexpr WithTrackedDestructor(const int value) : value(value) {}
   int value {};
 
