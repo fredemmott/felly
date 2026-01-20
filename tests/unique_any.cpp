@@ -21,6 +21,11 @@ struct Tracker {
     call_count = 0;
     last_value.reset();
   }
+
+  static void track(const int value) {
+    ++call_count;
+    last_value = value;
+  }
 };
 
 struct fd_like_traits {
@@ -29,8 +34,7 @@ struct fd_like_traits {
 
   static constexpr auto default_value() noexcept { return -1; }
   static void destroy(storage_type& s) {
-    Tracker::call_count++;
-    Tracker::last_value = s;
+    Tracker::track(s);
     s = default_value();
   }
   static constexpr bool has_value(const int value) { return value >= 0; }
@@ -55,8 +59,7 @@ struct negative_pointer_traits {
   static constexpr auto default_value() { return nullptr; }
 
   static void destroy(storage_type& s) {
-    Tracker::call_count++;
-    Tracker::last_value = s->value;
+    Tracker::track(s->value);
     delete std::exchange(s, nullptr);
   }
 
@@ -86,8 +89,7 @@ struct WithTrackedDestructor {
     if (moved) {
       return;
     }
-    Tracker::call_count++;
-    Tracker::last_value = value;
+    Tracker::track(value);
   }
 
   felly::non_copyable nocopy;
@@ -485,18 +487,15 @@ TEST_CASE("unique_any - optional-backed storage") {
   };
 
   using test_type = felly::unique_any<value_type, [](value_type& p) {
-    Tracker::call_count++;
-    Tracker::last_value = p.value;
+    Tracker::track(p.value);
   }>;
   using const_test_type =
     felly::unique_any<const value_type, [](value_type& p) {
-      Tracker::call_count++;
-      Tracker::last_value = p.value;
+      Tracker::track(p.value);
     }>;
   using delete_by_address_test_type =
     felly::unique_any<value_type, [](value_type* p) {
-      Tracker::call_count++;
-      Tracker::last_value = p->value;
+      Tracker::track(p->value);
     }>;
 
   SECTION("size") {
@@ -630,8 +629,7 @@ TEST_CASE("unique_any - optional-backed storage") {
 TEST_CASE("unique_any - void*") {
   // void* and aliases are frequently used as opaque handles
   using test_type = felly::unique_any<void* const, [](void* const p) {
-    ++Tracker::call_count;
-    Tracker::last_value = felly::numeric_cast<int>(std::bit_cast<intptr_t>(p));
+    Tracker::track(felly::numeric_cast<int>(std::bit_cast<intptr_t>(p)));
   }>;
 
   SECTION("basic behavior") {

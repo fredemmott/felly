@@ -15,14 +15,16 @@ struct Tracker {
     call_count = 0;
     last_value.reset();
   }
+
+  static void track(const int value) {
+    ++call_count;
+    last_value = value;
+  }
 };
 
 struct MyType {
   int value {};
-  ~MyType() {
-    Tracker::call_count++;
-    Tracker::last_value = value;
-  }
+  ~MyType() { Tracker::track(value); }
 };
 
 }// namespace
