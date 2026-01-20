@@ -4,6 +4,8 @@
 
 #include "unique_any.hpp"
 
+#include <tuple>
+
 namespace felly::inline unique_ptr_types {
 
 /** Optional specialization of `felly::unique_any` for pointers.
@@ -12,16 +14,28 @@ namespace felly::inline unique_ptr_types {
  * - adds a default (empty/nullptr) constructor
  * - supports `std::out_ptr` and `std::inout_ptr`
  */
-template <class T, auto TDeleter, auto TPredicate = std::identity {}>
-struct unique_ptr : unique_any<T* const, TDeleter, TPredicate> {
-  using pointer = T*;
-  using element_type = T;
+template <unique_any_traits TTraits>
+  requires requires {
+    typename TTraits::value_type;
+    requires std::is_pointer_v<typename TTraits::value_type>;
+  }
+struct basic_unique_ptr : basic_unique_any<TTraits> {
+  using pointer = std::remove_const_t<typename TTraits::value_type>;
+  using element_type = std::remove_pointer_t<pointer>;
 
-  using unique_any<T* const, TDeleter, TPredicate>::unique_any;
+  using basic_unique_any<TTraits>::basic_unique_any;
 
-  constexpr unique_ptr()
-    : unique_any<T* const, TDeleter, TPredicate> {std::nullopt} {}
+  constexpr basic_unique_ptr() : basic_unique_any<TTraits> {std::nullopt} {}
 };
+
+template <
+  class T,
+  auto TDeleter = unique_any_default_delete<T* const>,
+  felly_detail::nullptr_or_predicate<const std::remove_pointer_t<T>*> auto
+    TPredicate = nullptr>
+using unique_ptr =
+  basic_unique_ptr<unique_any_default_traits<T* const, TDeleter, TPredicate>>;
+
 }// namespace felly::inline unique_ptr_types
 
 namespace std {
@@ -33,12 +47,9 @@ namespace std {
  * A specialization isn't needed for `out_ptr_t` because `std::out_ptr` doesn't
  * use `release()`
  */
-template <class T, auto TDeleter, auto TPredicate, class Pointer, class... Args>
-class inout_ptr_t<
-  felly::unique_ptr<T, TDeleter, TPredicate>,
-  Pointer,
-  Args...> {
-  using Smart = felly::unique_ptr<T, TDeleter, TPredicate>;
+template <class TTraits, class Pointer, class... Args>
+class inout_ptr_t<felly::basic_unique_ptr<TTraits>, Pointer, Args...> {
+  using Smart = felly::basic_unique_ptr<TTraits>;
   Smart& smart;
   Pointer ptr {};
   std::tuple<Args...> args;

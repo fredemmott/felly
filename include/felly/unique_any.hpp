@@ -21,36 +21,49 @@ concept const_promotion_to = (!std::same_as<To, From>)
                     const std::remove_pointer_t<From>*,
                     const std::remove_pointer_t<From>>>;
 
-template <class T, auto TDeleter>
-struct invoke_as_deleter {
+template <auto TDeleter>
+struct invoke_as_deleter_t {
+  // General case
+  template <class T>
+  static void operator()(T&& v)
+    requires requires { std::invoke(TDeleter, std::forward<T>(v)); }
+  {
+    std::invoke(TDeleter, std::forward<T>(v));
+  }
+
+  // Allow `c_deleter(T*) for a `T`
+  template <class T>
+    requires(!std::is_pointer_v<T>)
+    && std::
+      invocable<decltype(TDeleter), std::add_pointer_t<std::remove_cvref_t<T>>>
+  static void operator()(T& x) {
+    std::invoke(
+      TDeleter, std::addressof(const_cast<std::remove_cvref_t<T>&>(x)));
+  }
+
   // Allow `c_deleter(T *)` for a `const T*`
+  template <class T>
   static void operator()(T x)
-    requires std::is_pointer_v<T>
-    && std::invocable<
-               decltype(TDeleter),
-               std::remove_const_t<std::remove_pointer_t<T>>*>
+    requires std::is_pointer_v<T> && std::is_const_v<std::remove_pointer_t<T>>
+    && (!std::invocable<decltype(TDeleter), T>)
+    && (std::invocable<
+        decltype(TDeleter),
+        std::remove_const_t<std::remove_pointer_t<T>>*>)
   {
     std::invoke(
       TDeleter, const_cast<std::remove_const_t<std::remove_pointer_t<T>>*>(x));
   }
-
-  static void operator()(T& x)
-    requires(!std::is_pointer_v<T>) && std::invocable<decltype(TDeleter), T&>
-  {
-    std::invoke(TDeleter, x);
-  }
-
-  static void operator()(T& x)
-    requires(!std::is_pointer_v<T>) && std::invocable<decltype(TDeleter), T*>
-    && (!std::invocable<decltype(TDeleter), T&>)
-  {
-    std::invoke(TDeleter, std::addressof(x));
-  }
 };
 
 template <auto TDeleter, class T>
-concept invocable_as_deleter = std::invocable<invoke_as_deleter<T, TDeleter>, T>
-  || std::invocable<invoke_as_deleter<T, TDeleter>, T&>;
+concept invocable_as_deleter =
+  requires(T v) { invoke_as_deleter_t<TDeleter> {}(v); };
+
+template <auto TDeleter, class T>
+  requires invocable_as_deleter<TDeleter, T>
+void invoke_as_deleter(T&& v) {
+  invoke_as_deleter_t<TDeleter> {}(std::forward<T>(v));
+}
 
 // clang++18 considers `std::forward_like` here to be a use-before-defined
 template <class T, class U>
@@ -67,103 +80,119 @@ constexpr decltype(auto) unique_any_forward_like(U&& u) {
   }
 }
 
+template <class T, class U>
+concept nullptr_or_predicate =
+  std::same_as<T, std::nullptr_t> || std::predicate<T, U>;
+
 }// namespace felly_detail
 
 namespace felly::inline unique_any_types {
 
-// Storage for any type using std::optional
-template <class T>
-class unique_any_optional_storage {
-  std::optional<T> storage;
+template <
+  class T,
+  auto TDeleter,
+  felly_detail::nullptr_or_predicate<const T&> auto TPredicate = nullptr>
+  requires felly_detail::
+    invocable_as_deleter<TDeleter, std::remove_const_t<T>&&>
+  struct unique_any_optional_storage_traits {
+  using value_type = T;
+  using mutable_value_type = std::remove_const_t<value_type>;
+  using storage_type = std::optional<mutable_value_type>;
 
- public:
-  [[nodiscard]] constexpr bool has_value() const noexcept {
-    return storage.has_value();
-  }
-  template <class Self>
-  [[nodiscard]] constexpr decltype(auto) value(this Self&& self) {
-    return felly_detail::unique_any_forward_like<Self>(self.storage.value());
+  static constexpr bool has_predicate =
+    !std::same_as<decltype(TPredicate), std::nullptr_t>;
+
+  static_assert(
+    std::movable<mutable_value_type>,
+    "stored type must be movable; if this is an unexpected failure, check C++ "
+    "rule of three/five/zero");
+
+  static constexpr auto default_value() noexcept { return storage_type {}; };
+
+  static constexpr void destroy(storage_type& s) noexcept {
+    auto temp = std::move(s).value();
+    s.reset();
+    felly_detail::invoke_as_deleter_t<TDeleter> {}(temp);
   }
 
-  constexpr void reset() noexcept { storage.reset(); }
+  [[nodiscard]] static constexpr bool has_value(
+    [[maybe_unused]] const value_type& v) noexcept {
+    if constexpr (has_predicate) {
+      return std::invoke(TPredicate, v);
+    } else {
+      return true;
+    }
+  }
+
+  [[nodiscard]] static constexpr bool has_value(
+    const storage_type& s) noexcept {
+    return s.has_value() && has_value(s.value());
+  }
+
+  template <class U>
+  [[nodiscard]] static constexpr decltype(auto) value(U&& s) {
+    return felly_detail::unique_any_forward_like<U>(s).value();
+  }
 
   template <class... Args>
-  constexpr void emplace(Args&&... args) {
-    storage.emplace(std::forward<Args>(args)...);
+  constexpr static void construct(storage_type& s, Args&&... args) {
+    s.emplace(std::forward<Args>(args)...);
   }
-
-  friend constexpr auto operator<=>(
-    const unique_any_optional_storage& lhs,
-    const unique_any_optional_storage& rhs) noexcept
-    requires std::three_way_comparable<T>
-  {
-    return lhs.storage <=> rhs.storage;
-  }
-
-  constexpr bool operator==(const unique_any_optional_storage&) const noexcept =
-    default;
 };
 
-/** Storage for values that can contain their own empty state, such as pointers.
- *
- * This is a space-saving alternative to `unique_any_optional_storage`
- */
-template <class T>
-class unique_any_direct_storage {
-  T storage {};
-
- public:
-  [[nodiscard]] constexpr bool has_value() const noexcept { return true; }
-  template <class Self>
-  [[nodiscard]] constexpr decltype(auto) value(this Self&& self) noexcept {
-    return felly_detail::unique_any_forward_like<Self>(self.storage);
-  }
-  constexpr void reset() noexcept {
-    if constexpr (std::is_trivially_copyable_v<T>) {
-      storage = {};
-    } else {
-      std::destroy_at(&storage);
-      std::construct_at(&storage);
-    }
-  }
-
-  template <std::convertible_to<T> U>
-  constexpr void emplace(U&& value) noexcept {
-    if constexpr (std::is_trivially_assignable_v<T&, U&&>) {
-      storage = std::forward<U>(value);
-    } else {
-      std::destroy_at(&storage);
-      std::construct_at(&storage, std::forward<U>(value));
-    }
-  }
-
-  friend constexpr auto operator<=>(
-    const unique_any_direct_storage&,
-    const unique_any_direct_storage&) noexcept = default;
-  constexpr bool operator==(const unique_any_direct_storage&) const noexcept =
-    default;
-};
-
-/** Specializable-class to for an simplified `std::optional`-like container
- * for `unique_any` to use to store a T.
- *
- * You may specialize this for your own types.
- */
-template <class T>
-struct unique_any_storage : unique_any_optional_storage<T> {};
-template <class T>
+template <
+  class T,
+  auto TDeleter = std::default_delete<std::remove_const_t<T>> {},
+  felly_detail::nullptr_or_predicate<const std::remove_pointer_t<T>*> auto
+    TPredicate = nullptr>
   requires std::is_pointer_v<T>
-struct unique_any_storage<T> : unique_any_direct_storage<T> {};
+  && felly_detail::invocable_as_deleter<TDeleter, std::remove_const_t<T>>
+struct unique_any_pointer_traits {
+  using value_type = T;
+  using storage_type = std::remove_const_t<T>;
 
-template <typename S, typename T>
-concept unique_any_storage_for = requires(S& s, S&& rs, const S& cs) {
-  { cs.has_value() } -> std::convertible_to<bool>;
-  { s.reset() } -> std::same_as<void>;
-  { s.emplace(std::declval<T>()) } -> std::same_as<void>;
-  { s.value() } -> std::convertible_to<T&>;
-  { cs.value() } -> std::convertible_to<const T&>;
-  { std::move(s).value() } -> std::convertible_to<T&&>;
+  static constexpr auto has_predicate =
+    !std::same_as<decltype(TPredicate), std::nullptr_t>;
+
+  static constexpr storage_type default_value() noexcept { return {}; };
+
+  static constexpr void destroy(storage_type& storage) {
+    felly_detail::invoke_as_deleter<TDeleter>(std::exchange(storage, nullptr));
+  }
+
+  [[nodiscard]] static constexpr bool has_value(
+    const storage_type& s) noexcept {
+    if constexpr (has_predicate) {
+      return std::invoke(TPredicate, s);
+    } else {
+      return static_cast<bool>(s);
+    }
+  }
+
+  template <class U>
+  [[nodiscard]] static constexpr decltype(auto) value(U&& s) {
+    return felly_detail::unique_any_forward_like<U>(s);
+  }
+
+  constexpr static void construct(
+    storage_type& s,
+    std::add_const_t<value_type> p) {
+    s = p;
+  }
 };
+
+template <class T>
+inline constexpr auto unique_any_default_delete = std::is_pointer_v<T>
+  ? std::default_delete<std::remove_const_t<std::remove_pointer_t<T>>> {}
+  : [](const T&) {};
+
+template <class T, auto TDeleter, auto TPredicate>
+struct unique_any_default_traits
+  : unique_any_optional_storage_traits<T, TDeleter, TPredicate> {};
+template <class T, auto TDeleter, auto TPredicate>
+  requires std::is_pointer_v<T>
+struct unique_any_default_traits<T, TDeleter, TPredicate>
+  : unique_any_pointer_traits<T, TDeleter, TPredicate> {};
 
 template <typename T>
 concept unique_any_traits =
@@ -171,43 +200,27 @@ concept unique_any_traits =
     typename T::value_type;
     typename T::storage_type;
   }
-  && unique_any_storage_for<
-    typename T::storage_type,
-    std::remove_const_t<typename T::value_type>>
   && requires(
-    typename T::storage_type& storage,
-    typename T::value_type& value,
-    const typename T::value_type& c_value) {
-       { T::destroy(value) } -> std::same_as<void>;
-       { T::has_value(c_value) } -> std::convertible_to<bool>;
-       { T::emplace(storage, std::move(value)) } -> std::same_as<void>;
+    const typename T::storage_type& const_storage,
+    typename T::storage_type& mutable_storage,
+    const typename T::value_type& const_value,
+    typename T::value_type& mutable_value) {
+       {
+         T::default_value()
+       } -> std::convertible_to<typename T::storage_type&&>;
+       {
+         T::construct(mutable_storage, std::move(mutable_value))
+       } -> std::same_as<void>;
+       { T::destroy(mutable_storage) } -> std::same_as<void>;
+       { T::has_value(const_storage) } -> std::convertible_to<bool>;
+       { T::has_value(const_value) } -> std::convertible_to<bool>;
+       {
+         T::value(mutable_storage)
+       } -> std::convertible_to<typename T::value_type&>;
+       {
+         T::value(const_storage)
+       } -> std::convertible_to<const typename T::value_type&>;
      };
-
-template <
-  class T,
-  auto Deleter,
-  std::predicate<T> auto Predicate = std::identity {},
-  class TStorage = unique_any_storage<std::remove_const_t<T>>>
-  requires felly_detail::invocable_as_deleter<Deleter, T>
-struct basic_unique_any_traits {
-  using value_type = T;
-  using storage_type = TStorage;
-
-  template <class U>
-  static constexpr void destroy(U&& value) {
-    felly_detail::invoke_as_deleter<T, Deleter> {}(std::forward<U>(value));
-  }
-
-  template <class U>
-  static constexpr bool has_value(U&& value) noexcept {
-    return static_cast<bool>(std::invoke(Predicate, std::forward<U>(value)));
-  }
-
-  template <class... Args>
-  static constexpr void emplace(storage_type& storage, Args&&... value) {
-    storage.emplace(std::forward<Args>(value)...);
-  }
-};
 
 /** like `unique_ptr`, but works with `void*` and non-pointer types.
  *
@@ -234,20 +247,27 @@ struct basic_unique_any {
   template <std::convertible_to<value_type> U>
   explicit constexpr basic_unique_any(U&& value) {
     if (TTraits::has_value(value)) {
-      TTraits::emplace(storage, std::forward<U>(value));
+      TTraits::construct(storage, std::forward<U>(value));
     }
   }
 
   template <class... Args>
+  explicit constexpr basic_unique_any(std::in_place_t, Args&&... args)
     requires(!std::is_pointer_v<value_type>)
-  explicit constexpr basic_unique_any(std::in_place_t, Args&&... args) {
-    TTraits::emplace(storage, std::forward<Args>(args)...);
-    if (!TTraits::has_value(storage.value())) {
-      storage.reset();
+    && requires(storage_type& storage) {
+         TTraits::construct(storage, std::forward<Args>(args)...);
+       }
+  {
+    TTraits::construct(storage, std::forward<Args>(args)...);
+    if (!has_value()) {
+      TTraits::destroy(storage);
     }
   }
+
   constexpr basic_unique_any(basic_unique_any&& other) noexcept {
-    *this = std::move(other);
+    if (other.has_value()) {
+      std::swap(storage, other.storage);
+    }
   }
 
   template <class UTraits>
@@ -255,30 +275,33 @@ struct basic_unique_any {
       const_promotion_to<typename UTraits::value_type, value_type>
     constexpr basic_unique_any(basic_unique_any<UTraits>&& other) noexcept {
     if (other) {
-      TTraits::emplace(storage, other.disown());
+      TTraits::construct(storage, other.disown());
     }
   }
 
   constexpr void reset() noexcept {
     if (has_value()) {
-      TTraits::destroy(storage.value());
+      TTraits::destroy(storage);
     }
-    storage.reset();
   }
 
   template <std::convertible_to<value_type> U>
   constexpr void reset(U&& u) {
-    reset();
-    TTraits::emplace(storage, std::forward<U>(u));
+    if (has_value()) {
+      TTraits::destroy(storage);
+    }
+    if (TTraits::has_value(u)) {
+      TTraits::construct(storage, std::forward<U>(u));
+    }
   }
 
   // Like std::unique_ptr's `release()`, but more clearly named
   [[nodiscard]]
   constexpr value_type disown() {
     require_value();
-    auto ret = std::move(storage.value());
-    storage.reset();
-    return std::move(ret);
+    auto ret = std::move(TTraits::value(storage));
+    storage = TTraits::default_value();
+    return ret;
   }
 
   constexpr basic_unique_any& operator=(basic_unique_any&& other) noexcept {
@@ -287,7 +310,9 @@ struct basic_unique_any {
     }
 
     reset();
-    storage = std::exchange(other.storage, storage_type {});
+    if (other.has_value()) {
+      TTraits::construct(storage, other.disown());
+    }
     return *this;
   }
 
@@ -301,7 +326,7 @@ struct basic_unique_any {
 
     reset();
     if (other) {
-      TTraits::emplace(storage, other.disown());
+      TTraits::construct(storage, other.disown());
     }
     return *this;
   }
@@ -319,7 +344,7 @@ struct basic_unique_any {
   [[nodiscard]]
   constexpr decltype(auto) get() const {
     require_value();
-    return std::as_const(storage.value());
+    return std::as_const(TTraits::value(storage));
   }
 
   [[nodiscard]]
@@ -327,7 +352,7 @@ struct basic_unique_any {
     requires(!std::is_const_v<value_type>)
   {
     require_value();
-    return storage.value();
+    return TTraits::value(storage);
   }
 
   [[nodiscard]]
@@ -360,7 +385,7 @@ struct basic_unique_any {
   friend constexpr auto operator<=>(
     const basic_unique_any& lhs,
     const basic_unique_any& rhs) noexcept
-    requires std::three_way_comparable<value_type>
+    requires std::three_way_comparable<storage_type>
   = default;
 
   [[nodiscard]]
@@ -368,21 +393,21 @@ struct basic_unique_any {
 
   [[nodiscard]]
   constexpr bool operator==(const value_type& other) const noexcept
-    requires std::equality_comparable<value_type>
+    requires std::equality_comparable<storage_type>
   {
     if (!has_value()) {
       return !TTraits::has_value(other);
     }
 
-    return (storage.value() == other);
+    return (get() == other);
   }
 
  private:
-  storage_type storage;
+  storage_type storage {TTraits::default_value()};
 
   [[nodiscard]]
   constexpr bool has_value() const noexcept {
-    return storage.has_value() && TTraits::has_value(storage.value());
+    return TTraits::has_value(storage);
   }
 
   constexpr void require_value() const {
@@ -392,8 +417,11 @@ struct basic_unique_any {
   }
 };
 
-template <class T, auto TDeleter, auto TPredicate = std::identity {}>
+template <
+  class T,
+  auto TDeleter = unique_any_default_delete<T>,
+  felly_detail::nullptr_or_predicate<const T&> auto TPredicate = nullptr>
 using unique_any =
-  basic_unique_any<basic_unique_any_traits<T, TDeleter, TPredicate>>;
+  basic_unique_any<unique_any_default_traits<T, TDeleter, TPredicate>>;
 
 }// namespace felly::inline unique_any_types

@@ -255,6 +255,58 @@ Instead:
 - use `unique_any<T> { std::nullopt }` for an empty state; `unique_any<T> { nullptr }` is also supported for pointer types
 - use `unique_any<T> { std::in_place }` for a default-initialized *value*. This is not supported for pointer types.
 
+#### Extended Customization
+
+By default, `unique_any`:
+- uses `std::remove_const_t<T>` as the storage type for pointers
+- uses `std::optional<T>` as the storage type for non-pointers.
+- considers any non-nullptr to be a non-empty pointer value
+- considers any non-pointer value to be non-empty, i.e. the `unique_any` is empty if and only if the underlying `std::optional` is empty
+
+You can customize these defaults by using `felly::basic_unique_any<Traits>` with a custom trait type. Your type must provide:
+- `typename T::value_type`: the exposed type of the value
+- `typename T::storage_type`: the storage type used internally; this should generally be non-const, as even if `unique_any` is used for a const type, a non-const type is required in order for `std::move()`, `reset()` and so on to work
+- `T::default_value() -> std::convertible<storage_type>`: the default value for the storage. This should be an 'empty' value, e.g. `std::nullopt` or `nullptr`
+- `T::is_valid(const storage_type&) -> bool`: whether the storage is considered valid/non-empty. For optional-backed storage, by default this is considered true for any value, and for pointers it is considered true for any non-nullptr value
+- `T::is_valid(const value_type&) -> bool`: whether the storage would be considered valid/non-empty if the provided value were stored. By default, this is true for any non-nullptr pointers and all non-pointer values
+- `T::construct(storage_type&, value_type&&) -> void`: store the provided value. If there was an existing value, `unique_any` will call `T::destroy()` first
+  - for non-pointer types, you can implement `T::construct(storage_type&)` to support `unique_any<T>(std::in_place)`, or additional overloads to support `unique_any<T>(std::in_place, ...)`
+- `T::destroy(storage_type&) -> void`: destroy the stored value. Implementations may assume this will not be called unless a valid value is stored
+- `T::value(storage_type&) -> value_type&`: retrieve a mutable reference to the stored value
+- `T::value(const storage_type&) -> const value_type&`: retrieve a const reference to the stored value
+
+This is mostly useful for:
+- non-pointer types that can indicate their own empty state, e.g. a Unix File Descriptor (FD) can be represented by a `const int`, which is valid if non-negative
+- non-pointer types with a C-style initialization function (e.g. `foo_t foo; foo_init(&foo);`), even if they can not represent their own empty state (in which case, you probably want `std::optional<std::remove_const_t<T>>` as your storage type)
+
+For example, Unix FDs could be represented with:
+
+```c++
+struct unique_fd_traits{
+  using value_type = const int;
+  using storage_type = int;
+
+  static constexpr auto default_value() noexcept { return -1; }
+  static void destroy(storage_type& s) {
+    Tracker::call_count++;
+    Tracker::last_value = s;
+    s = default_value();
+  }
+  static constexpr bool has_value(const int value) { return value >= 0; }
+
+  template <class S>
+  static constexpr decltype(auto) value(S&& storage) {
+    return std::forward<S>(storage);
+  }
+
+  static constexpr void construct(storage_type& storage, const int value) {
+    storage = value;
+  }
+};
+static_assert(felly::unique_any_traits<unique_fd_traits>);
+using unique_fd = felly::basic_unique_any<unique_fd_traits>;
+```
+
 ---
 
 ### felly::unique_ptr

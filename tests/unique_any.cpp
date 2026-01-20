@@ -5,7 +5,7 @@
 #include <catch2/matchers/catch_matchers_exception.hpp>
 
 #include <optional>
-
+#include "felly/moved_flag.hpp"
 #include "felly/non_copyable.hpp"
 #include "felly/unique_any.hpp"
 
@@ -23,38 +23,81 @@ struct Tracker {
   }
 };
 
-void FDLikeIntDeleter(const int fd) {
-  Tracker::call_count++;
-  Tracker::last_value = fd;
-}
+struct fd_like_traits {
+  using value_type = const int;
+  using storage_type = int;
 
-[[nodiscard]]
-constexpr bool FDLikeIntIsValid(const int fd) {
-  return fd >= 0;
-}
+  static constexpr auto default_value() noexcept { return -1; }
+  static void destroy(storage_type& s) {
+    Tracker::call_count++;
+    Tracker::last_value = s;
+    s = default_value();
+  }
+  static constexpr bool has_value(const int value) { return value >= 0; }
+
+  template <class S>
+  static constexpr decltype(auto) value(S&& storage) {
+    return std::forward<S>(storage);
+  }
+
+  static constexpr void construct(storage_type& storage, const int value) {
+    storage = value;
+  }
+};
+static_assert(felly::unique_any_traits<fd_like_traits>);
 
 struct Aggregate {
   int value {};
 };
+struct negative_pointer_traits {
+  using value_type = Aggregate* const;
+  using storage_type = Aggregate*;
+  static constexpr auto default_value() { return nullptr; }
 
-struct WithTrackedDestructor {
-  int value {};
-  ~WithTrackedDestructor() {
+  static void destroy(storage_type& s) {
     Tracker::call_count++;
-    Tracker::last_value = value;
+    Tracker::last_value = s->value;
+    delete std::exchange(s, nullptr);
+  }
+
+  [[nodiscard]]
+  static constexpr bool has_value(const storage_type& s) {
+    return s && std::bit_cast<intptr_t>(s) != -1;
+  }
+
+  template <class S>
+  static constexpr decltype(auto) value(S&& storage) {
+    return std::forward<S>(storage);
+  }
+
+  static constexpr void construct(storage_type& storage, Aggregate* value) {
+    storage = value;
   }
 };
 
-[[nodiscard]]
-constexpr bool Win32HandleIsValid(const void* const handle) {
-  return handle && (std::bit_cast<intptr_t>(handle) != -1);
-}
+struct WithTrackedDestructor {
+  constexpr WithTrackedDestructor() = default;
+  constexpr WithTrackedDestructor(WithTrackedDestructor&&) = default;
+  constexpr WithTrackedDestructor& operator=(WithTrackedDestructor&&) = default;
+  explicit constexpr WithTrackedDestructor(const int value) : value(value) {}
+  int value {};
+
+  ~WithTrackedDestructor() {
+    if (moved) {
+      return;
+    }
+    Tracker::call_count++;
+    Tracker::last_value = value;
+  }
+
+  felly::non_copyable nocopy;
+  felly::moved_flag moved;
+};
 
 }// namespace
 
-TEST_CASE("unique_any - basic values") {
-  using unique_fd_like =
-    felly::unique_any<const int, FDLikeIntDeleter, &FDLikeIntIsValid>;
+TEST_CASE("unique_any - basic functionality") {
+  using unique_fd_like = felly::basic_unique_any<fd_like_traits>;
 
   SECTION("static checks") {
     STATIC_CHECK(std::swappable<unique_fd_like>);
@@ -64,7 +107,7 @@ TEST_CASE("unique_any - basic values") {
     STATIC_CHECK(std::equality_comparable<unique_fd_like>);
     STATIC_CHECK(std::totally_ordered<unique_fd_like>);
 
-    STATIC_CHECK(sizeof(unique_fd_like) == sizeof(std::optional<int>));
+    STATIC_CHECK(sizeof(unique_fd_like) == sizeof(int));
   }
 
   SECTION("holds values") {
@@ -334,14 +377,7 @@ TEST_CASE("unique_any - standard pointers") {
 }
 
 TEST_CASE("unique_any - -1 pointers") {
-  using test_type = felly::unique_any<
-    Aggregate*,
-    [](const Aggregate* p) {
-      Tracker::call_count++;
-      Tracker::last_value = p->value;
-      delete p;
-    },
-    &Win32HandleIsValid>;
+  using test_type = felly::basic_unique_any<negative_pointer_traits>;
   // negative pointers can't be constexpr, which is why we don't take an
   // invalid value template parameter
   const auto Invalid = reinterpret_cast<Aggregate*>(-1);
@@ -437,39 +473,43 @@ TEST_CASE("unique_any - const pointers") {
   }
 }
 
-TEST_CASE("unique_any - aggregates") {
+TEST_CASE("unique_any - optional-backed storage") {
   struct value_type : felly::non_copyable {
     constexpr value_type() = default;
     constexpr explicit value_type(const int value) : value {value} {}
     int value {};
-    constexpr operator bool() const noexcept { return value != 0; }
     constexpr bool operator==(const value_type&) const noexcept = default;
     constexpr bool operator==(const int other) const noexcept {
       return value == other;
     }
   };
 
-  using test_type = felly::unique_any<value_type, [](const value_type& p) {
+  using test_type = felly::unique_any<value_type, [](value_type& p) {
     Tracker::call_count++;
     Tracker::last_value = p.value;
   }>;
   using const_test_type =
-    felly::unique_any<const value_type, [](const value_type& p) {
+    felly::unique_any<const value_type, [](value_type& p) {
       Tracker::call_count++;
       Tracker::last_value = p.value;
     }>;
-  using by_address_test_type = felly::unique_any<value_type, [](value_type* p) {
-    Tracker::call_count++;
-    Tracker::last_value = p->value;
-  }>;
+  using delete_by_address_test_type =
+    felly::unique_any<value_type, [](value_type* p) {
+      Tracker::call_count++;
+      Tracker::last_value = p->value;
+    }>;
+
+  SECTION("size") {
+    STATIC_CHECK(sizeof(test_type) == sizeof(std::optional<value_type>));
+  }
 
   SECTION("is-valid") {
-    CHECK_FALSE(test_type {std::in_place});
+    CHECK_FALSE(test_type {std::nullopt});
     CHECK(test_type {std::in_place, 1});
   }
   SECTION("deleter not called for invalid") {
     Tracker::reset();
-    std::ignore = test_type {std::in_place};
+    std::ignore = test_type {std::nullopt};
     CHECK(Tracker::call_count == 0);
   }
 
@@ -508,6 +548,17 @@ TEST_CASE("unique_any - aggregates") {
     CHECK(Tracker::last_value == value);
   }
 
+  SECTION("default in-place construction") {
+    Tracker::reset();
+    {
+      const auto u = test_type {std::in_place};
+      CHECK(u);
+      CHECK(Tracker::call_count == 0);
+    }
+    CHECK(Tracker::call_count == 1);
+    CHECK(Tracker::last_value == 0);
+  }
+
   SECTION("get") {
     constexpr auto value = __LINE__;
     auto u = test_type {std::in_place, value};
@@ -527,7 +578,7 @@ TEST_CASE("unique_any - aggregates") {
 
   SECTION("deleter not called for invalid") {
     Tracker::reset();
-    std::ignore = test_type {std::in_place};
+    std::ignore = test_type {std::nullopt};
     CHECK(Tracker::call_count == 0);
   }
   SECTION("deleter called for valid") {
@@ -567,7 +618,7 @@ TEST_CASE("unique_any - aggregates") {
     Tracker::reset();
     constexpr auto value = __LINE__;
     {
-      by_address_test_type u {std::in_place, value};
+      delete_by_address_test_type u {std::in_place, value};
       CHECK(u.get().value == value);
       CHECK(Tracker::call_count == 0);
     }
@@ -592,4 +643,32 @@ TEST_CASE("unique_any - void*") {
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == value);
   }
+}
+struct init_test_traits : felly::unique_any_optional_storage_traits<
+                            WithTrackedDestructor,
+                            [](auto...) {}> {
+  static constexpr auto test_value = __LINE__;
+  template <class... Args>
+  static constexpr void construct(
+    std::optional<WithTrackedDestructor>& storage,
+    Args&&... args) {
+    if constexpr (sizeof...(args) == 0) {
+      storage.emplace(test_value);
+    } else {
+      storage.emplace(std::forward<Args>(args)...);
+    }
+  }
+};
+
+TEST_CASE("unique-any - custom init function") {
+  using test_type = felly::basic_unique_any<init_test_traits>;
+  {
+    Tracker::reset();
+    const test_type u {std::in_place};
+    CHECK(u);
+    CHECK(u->value == init_test_traits::test_value);
+    CHECK(Tracker::call_count == 0);
+  }
+  CHECK(Tracker::call_count == 1);
+  CHECK(Tracker::last_value == init_test_traits::test_value);
 }
