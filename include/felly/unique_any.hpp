@@ -420,7 +420,10 @@ struct basic_unique_any {
 template <
   class T,
   auto TDeleter = unique_any_default_delete<T>,
-  felly_detail::nullptr_or_predicate<const T&> auto TPredicate = nullptr>
+  auto TPredicate = nullptr>
+// As of 2026-01-20, MSVC 2022 doesn't allow using this concept as `concept auto
+// TPredicate` above
+  requires felly_detail::nullptr_or_predicate<decltype(TPredicate), const T&>
 using unique_any =
   basic_unique_any<unique_any_default_traits<T, TDeleter, TPredicate>>;
 

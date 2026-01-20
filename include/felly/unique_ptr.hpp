@@ -31,8 +31,10 @@ struct basic_unique_ptr : basic_unique_any<TTraits> {
 template <
   class T,
   auto TDeleter = unique_any_default_delete<T* const>,
-  felly_detail::nullptr_or_predicate<const std::remove_pointer_t<T>*> auto
-    TPredicate = nullptr>
+  auto TPredicate = nullptr>
+// As of 2026-01-20, MSVC 2022 doesn't allow using this concept as `concept auto
+// TPredicate` above
+  requires felly_detail::nullptr_or_predicate<decltype(TPredicate), const T*>
 using unique_ptr =
   basic_unique_ptr<unique_any_default_traits<T* const, TDeleter, TPredicate>>;
 
