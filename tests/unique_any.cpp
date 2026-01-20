@@ -9,6 +9,8 @@
 #include "felly/non_copyable.hpp"
 #include "felly/unique_any.hpp"
 
+#include <catch2/catch_template_test_macros.hpp>
+
 #include "felly/numeric_cast.hpp"
 
 namespace {
@@ -98,52 +100,61 @@ struct WithTrackedDestructor {
 
 }// namespace
 
-TEST_CASE("unique_any - basic functionality") {
-  using unique_fd_like = felly::basic_unique_any<fd_like_traits>;
+using unique_fd_like_with_traits = felly::basic_unique_any<fd_like_traits>;
+using unique_fd_like_inline =
+  felly::unique_any<const int, &Tracker::track, [](const int v) {
+    return v >= 0;
+  }>;
 
+static_assert(sizeof(unique_fd_like_with_traits) == sizeof(int));
+static_assert(sizeof(unique_fd_like_inline) == sizeof(std::optional<int>));
+
+TEMPLATE_TEST_CASE(
+  "unique_any - basic functionality",
+  "",
+  unique_fd_like_with_traits,
+  unique_fd_like_inline) {
   SECTION("static checks") {
-    STATIC_CHECK(std::swappable<unique_fd_like>);
-    STATIC_CHECK(std::movable<unique_fd_like>);
-    STATIC_CHECK_FALSE(std::copyable<unique_fd_like>);
+    STATIC_CHECK(std::same_as<const int, typename TestType::value_type>);
+    STATIC_CHECK(std::swappable<TestType>);
+    STATIC_CHECK(std::movable<TestType>);
+    STATIC_CHECK_FALSE(std::copyable<TestType>);
 
-    STATIC_CHECK(std::equality_comparable<unique_fd_like>);
-    STATIC_CHECK(std::totally_ordered<unique_fd_like>);
-
-    STATIC_CHECK(sizeof(unique_fd_like) == sizeof(int));
+    STATIC_CHECK(std::equality_comparable<TestType>);
+    STATIC_CHECK(std::totally_ordered<TestType>);
   }
 
   SECTION("holds values") {
     constexpr auto v1 = __LINE__;
     constexpr auto v2 = __LINE__;
-    CHECK(unique_fd_like {v1}.get() == v1);
-    CHECK(*unique_fd_like {v1} == v1);
-    CHECK(unique_fd_like {v2}.get() == v2);
-    CHECK(*unique_fd_like {v2} == v2);
+    CHECK(TestType {v1}.get() == v1);
+    CHECK(*TestType {v1} == v1);
+    CHECK(TestType {v2}.get() == v2);
+    CHECK(*TestType {v2} == v2);
   }
 
   SECTION("operator& const correctness") {
-    STATIC_CHECK(std::is_const_v<unique_fd_like::value_type>);
     constexpr auto value = __LINE__;
-    unique_fd_like u {value};
+    TestType u {value};
     auto p = &u;
     STATIC_CHECK(std::is_pointer_v<decltype(p)>);
     STATIC_CHECK(std::is_const_v<std::remove_reference_t<decltype(*p)>>);
-    STATIC_CHECK(std::is_same_v<decltype(p), unique_fd_like::value_type*>);
+    STATIC_CHECK(std::is_same_v<decltype(p), typename TestType::value_type*>);
     CHECK(*p == value);
   }
 
   SECTION("is-valid test") {
     Tracker::reset();
     {
-      auto valid = unique_fd_like {0};
-      auto invalid = unique_fd_like {-1};
+      auto valid = TestType {0};
+      auto invalid = TestType {-1};
       CHECK(Tracker::call_count == 0);
       CHECK_FALSE(Tracker::last_value.has_value());
 
       CHECK(valid);
       CHECK_FALSE(invalid);
 
-      CHECK_FALSE(unique_fd_like {std::nullopt});
+      CHECK_FALSE(TestType {std::nullopt});
     }
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == 0);
@@ -151,32 +162,32 @@ TEST_CASE("unique_any - basic functionality") {
 
   SECTION("invalid values are equivalent") {
     Tracker::reset();
-    CHECK(unique_fd_like {-1} == unique_fd_like {-1});
-    CHECK(unique_fd_like {-1} == unique_fd_like {-2});
+    CHECK(TestType {-1} == TestType {-1});
+    CHECK(TestType {-1} == TestType {-2});
     CHECK(Tracker::call_count == 0);
   }
 
   SECTION("ordering") {
-    CHECK(unique_fd_like {0} < unique_fd_like {1});
-    CHECK_FALSE(unique_fd_like {0} > unique_fd_like {1});
+    CHECK(TestType {0} < TestType {1});
+    CHECK_FALSE(TestType {0} > TestType {1});
 
-    CHECK(unique_fd_like {1} > unique_fd_like {0});
-    CHECK_FALSE(unique_fd_like {1} < unique_fd_like {0});
+    CHECK(TestType {1} > TestType {0});
+    CHECK_FALSE(TestType {1} < TestType {0});
 
-    CHECK(unique_fd_like {0} <= unique_fd_like {0});
-    CHECK(unique_fd_like {0} >= unique_fd_like {0});
+    CHECK(TestType {0} <= TestType {0});
+    CHECK(TestType {0} >= TestType {0});
 
-    CHECK(unique_fd_like {0} == unique_fd_like {0});
-    CHECK_FALSE(unique_fd_like {0} == unique_fd_like {1});
+    CHECK(TestType {0} == TestType {0});
+    CHECK_FALSE(TestType {0} == TestType {1});
 
-    CHECK_FALSE(unique_fd_like {0} != unique_fd_like {0});
-    CHECK(unique_fd_like {0} != unique_fd_like {1});
+    CHECK_FALSE(TestType {0} != TestType {0});
+    CHECK(TestType {0} != TestType {1});
   }
 
   SECTION("deleter called on scope exit") {
     Tracker::reset();
     constexpr auto value = __LINE__;
-    std::ignore = unique_fd_like {value};
+    std::ignore = TestType {value};
     CHECK(Tracker::call_count == 1);
     CHECK(Tracker::last_value == value);
   }
@@ -185,7 +196,7 @@ TEST_CASE("unique_any - basic functionality") {
     Tracker::reset();
     constexpr auto value = __LINE__;
     {
-      auto u = unique_fd_like {value};
+      auto u = TestType {value};
       CHECK(u);
       auto u2 = std::move(u);
       CHECK_FALSE(u);
@@ -199,7 +210,7 @@ TEST_CASE("unique_any - basic functionality") {
   SECTION("move to self") {
     Tracker::reset();
     constexpr auto value = __LINE__;
-    auto u = unique_fd_like {value};
+    auto u = TestType {value};
     // `u = std::move(u)`, but bypass move-to-self compiler warnings
     u = std::move(*std::addressof(u));
     CHECK(u);
@@ -212,8 +223,8 @@ TEST_CASE("unique_any - basic functionality") {
     constexpr auto v1 = __LINE__;
     constexpr auto v2 = __LINE__;
     {
-      auto u1 = unique_fd_like {v1};
-      auto u2 = unique_fd_like {v2};
+      auto u1 = TestType {v1};
+      auto u2 = TestType {v2};
       u2 = std::move(u1);
       CHECK(u2.get() == v1);
       CHECK(Tracker::call_count == 1);
@@ -227,8 +238,8 @@ TEST_CASE("unique_any - basic functionality") {
     Tracker::reset();
     constexpr auto v1 = __LINE__;
     constexpr auto v2 = __LINE__;
-    auto u1 = unique_fd_like {v1};
-    auto u2 = unique_fd_like {v2};
+    auto u1 = TestType {v1};
+    auto u2 = TestType {v2};
 
     std::swap(u1, u1);
     CHECK(u1.get() == v1);
@@ -250,7 +261,7 @@ TEST_CASE("unique_any - basic functionality") {
     CHECK(Tracker::call_count == 0);
     CHECK(u2.get() == v2);
 
-    u1 = unique_fd_like {-1};
+    u1 = TestType {-1};
     CHECK_FALSE(u1);
     std::swap(u1, u2);
     CHECK(u1);
@@ -260,16 +271,16 @@ TEST_CASE("unique_any - basic functionality") {
   }
 
   SECTION("equality") {
-    CHECK(unique_fd_like {0} == unique_fd_like {0});
-    CHECK(unique_fd_like {-1} == unique_fd_like {-1});
-    CHECK_FALSE(unique_fd_like {0} == unique_fd_like {1});
+    CHECK(TestType {0} == TestType {0});
+    CHECK(TestType {-1} == TestType {-1});
+    CHECK_FALSE(TestType {0} == TestType {1});
   }
 
   SECTION("disown()") {
     Tracker::reset();
     {
       constexpr auto value = __LINE__;
-      auto u = unique_fd_like {value};
+      auto u = TestType {value};
       CHECK(u.disown() == value);
       CHECK_FALSE(u);
     }
@@ -280,7 +291,7 @@ TEST_CASE("unique_any - basic functionality") {
     Tracker::reset();
     constexpr auto v1 = __LINE__;
     {
-      auto u = unique_fd_like {v1};
+      auto u = TestType {v1};
       CHECK(u);
       u.reset();
       CHECK_FALSE(u);
@@ -297,7 +308,7 @@ TEST_CASE("unique_any - basic functionality") {
     constexpr auto v1 = __LINE__;
     constexpr auto v2 = __LINE__;
     {
-      auto u = unique_fd_like {v1};
+      auto u = TestType {v1};
       u.reset(v2);
       CHECK(Tracker::call_count == 1);
       CHECK(Tracker::last_value == v1);
@@ -308,7 +319,7 @@ TEST_CASE("unique_any - basic functionality") {
 
   SECTION("get() is an immutable reference") {
     static constexpr auto value = __LINE__;
-    unique_fd_like v {value};
+    TestType v {value};
     CHECK(v.get() == value);
     using U = decltype(v.get());
     STATIC_CHECK(std::is_reference_v<U>);
@@ -317,7 +328,7 @@ TEST_CASE("unique_any - basic functionality") {
 
   SECTION("operator*() is an immutable reference") {
     static constexpr auto value = __LINE__;
-    unique_fd_like v {value};
+    TestType v {value};
     CHECK(*v == value);
     using U = decltype(*v);
     STATIC_CHECK(std::is_reference_v<U>);
