@@ -96,7 +96,10 @@ TEST_CASE("guarded_data move semantics", "[guarded_data]") {
   CHECK(lock2->size() == 3);
 
   SECTION("move to self") {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wself-move"
     lock2 = std::move(lock2);
+#pragma clang diagnostic pop
     CHECK(lock2);
     CHECK(lock2->size() == 3);
   }
