@@ -91,4 +91,10 @@ TEST_CASE("guarded_data move semantics", "[guarded_data]") {
     CHECK(lock2);
     CHECK(lock2->size() == 3);
   }
+
+  SECTION("moved-from twice") {
+    CHECK(!lock1);
+    auto lock3 = std::move(lock1);
+    CHECK(!lock3);
+  }
 }
