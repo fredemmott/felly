@@ -19,6 +19,11 @@ struct unique_guarded_data_lock {
 
   unique_guarded_data_lock& operator=(
     unique_guarded_data_lock&& other) noexcept {
+    // Not required once LWG 4172 is widely adopted (unique_lock move to self),
+    // but probably good to keep as a safety net anyway
+    if (std::addressof(other) == this) {
+      return *this;
+    }
     mLock = std::move(other.mLock);
     mData = std::exchange(other.mData, nullptr);
     return *this;

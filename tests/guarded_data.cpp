@@ -78,7 +78,17 @@ TEST_CASE("guarded_data move semantics", "[guarded_data]") {
   guarded_data<std::vector<int>> guarded {1, 2, 3};
 
   auto lock1 = guarded.lock();
-  auto lock2 = std::move(lock1);
+  CHECK(lock1);
+  CHECK(lock1->size() == 3);
 
+  auto lock2 = std::move(lock1);
+  CHECK(lock2);
+  CHECK(!lock1);
   CHECK(lock2->size() == 3);
+
+  SECTION("move to self") {
+    lock2 = std::move(lock2);
+    CHECK(lock2);
+    CHECK(lock2->size() == 3);
+  }
 }
