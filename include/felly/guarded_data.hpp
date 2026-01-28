@@ -28,6 +28,8 @@ struct unique_guarded_data_lock {
     *this = std::move(other);
   }
 
+  operator bool() const noexcept { return mData != nullptr; }
+
   T const* operator->() const noexcept { return mData; }
 
   T* operator->() noexcept { return mData; }

@@ -32,14 +32,17 @@ TEST_CASE("guarded_data basic usage", "[guarded_data]") {
   SECTION("Manual unlock releases the mutex") {
     guarded_data<int> guarded(100);
     auto locked = guarded.lock();
+    CHECK(locked);
 
     locked.unlock();
+    CHECK(!locked);
 
     // After manual unlock, the pointer is nullified in this implementation
     // Attempting to use operator-> would be UB, but we can verify the state
     // if we added a check, but typically we just verify it doesn't hang
     // when we try to lock it again.
     auto locked2 = guarded.lock();
+    CHECK(locked2);
     CHECK(*locked2 == 100);
   }
 }
