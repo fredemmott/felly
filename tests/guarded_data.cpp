@@ -45,6 +45,15 @@ TEST_CASE("guarded_data basic usage", "[guarded_data]") {
     CHECK(locked2);
     CHECK(*locked2 == 100);
   }
+
+  SECTION("Repeated manual unlock") {
+    guarded_data<int> guarded(100);
+    auto locked = guarded.lock();
+    locked.unlock();
+    CHECK(!locked);
+    CHECK_THROWS(locked.unlock());
+    CHECK(!locked);
+  }
 }
 
 TEST_CASE("guarded_data thread safety", "[guarded_data]") {

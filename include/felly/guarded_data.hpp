@@ -60,6 +60,9 @@ struct unique_guarded_data_lock {
   }
 
   void unlock() {
+    if (!(mData && mLock.owns_lock())) {
+      throw std::logic_error("Unlocking a lock that isn't locked");
+    }
     mData = nullptr;
     mLock.unlock();
   }
