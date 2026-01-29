@@ -32,6 +32,13 @@ jobs:
             cxx_compiler: cl
           - os: macos-latest
             cxx_compiler: clang-cl
+        include:
+          - os: windows-latest
+            cxx_compiler: cl
+            build_type: Debug
+            cmake_extra_args: -DVCPKG_TARGET_TRIPLET=x64-windows-asan -DCMAKE_CXX_FLAGS=/fsanitize=address
+            name_append: (ASAN)
+    name: ${{matrix.os}} / ${{matrix.cxx_compiler}} ${{matrix.name_append}}
     steps:
     - uses: actions/checkout@v4
     - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
@@ -44,8 +51,8 @@ jobs:
         "-DCMAKE_TOOLCHAIN_FILE=$($Env:VCPKG_INSTALLATION_ROOT)/scripts/buildsystems/vcpkg.cmake" `
         -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }} `
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+        ${{matrix.cmake_extra_args}} `
         -S ${{ github.workspace }}
-
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
 

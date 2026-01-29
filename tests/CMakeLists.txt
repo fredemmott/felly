@@ -2,6 +2,7 @@ find_package(Catch2 CONFIG REQUIRED)
 
 add_executable(
   tests
+  asan.cpp
   guarded_data.cpp
   moved_flag.cpp
   no_unique_address.cpp
