@@ -19,6 +19,7 @@ if (MSVC)
     tests
     PRIVATE
     /W4 /WX
+    /EHsc # Required for ASAN
   )
 endif ()
 
