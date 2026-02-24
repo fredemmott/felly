@@ -20,7 +20,7 @@ struct numeric_cast_range_error : std::range_error {
           "Value {} out of range {}..{}",
           value,
           std::numeric_limits<T>::lowest(),
-          std::numeric_limits<T>::max())) {}
+          (std::numeric_limits<T>::max()))) {}
 };
 
 template <std::integral T>
@@ -43,7 +43,7 @@ constexpr T numeric_cast(const U u) {
   const auto v = static_cast<V>(u);
 
   constexpr auto Lowest = static_cast<V>(std::numeric_limits<T>::lowest());
-  constexpr auto Max = static_cast<V>(std::numeric_limits<T>::max());
+  constexpr auto Max = static_cast<V>((std::numeric_limits<T>::max)());
 
   if (v < Lowest || v > Max) [[unlikely]] {
     throw numeric_cast_range_error(std::type_identity<T> {}, v);
@@ -55,7 +55,7 @@ template <std::floating_point T, std::integral U>
 [[nodiscard]]
 constexpr T numeric_cast(const U u) {
   constexpr auto Lowest = std::numeric_limits<T>::lowest();
-  constexpr auto Max = std::numeric_limits<T>::max();
+  constexpr auto Max = (std::numeric_limits<T>::max)();
   if (u < Lowest || u > Max) [[unlikely]] {
     throw numeric_cast_range_error(std::type_identity<T> {}, u);
   }
