@@ -1,5 +1,5 @@
 // Copyright 2026 Fred Emmott <fred@fredemmott.com>
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BSL-1.0
 #pragma once
 
 // MSVC recognizes [[no_unique_address]], but ignores it and requires its

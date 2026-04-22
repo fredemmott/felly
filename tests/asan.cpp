@@ -1,5 +1,5 @@
 // Copyright 2026 Fred Emmott <fred@fredemmott.com>
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BSL-1.0
 
 #ifdef _WIN32
 #define ASAN_DEFAULT_EXPORT __declspec(dllexport)

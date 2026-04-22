@@ -1,5 +1,5 @@
 // Copyright 2025 Fred Emmott <fred@fredemmott.com>
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BSL-1.0
 #pragma once
 
 #include <compare>

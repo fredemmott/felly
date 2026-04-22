@@ -2,7 +2,7 @@
   "name": "felly",
   "description": "Header-only library for the felly project",
   "homepage": "https://github.com/fredemmott/felly",
-  "license": "MIT",
+  "license": "BSL-1.0",
   "builtin-baseline": "84bab45d415d22042bd0b9081aea57f362da3f35",
   "dependencies": [
     {

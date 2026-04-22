@@ -348,4 +348,4 @@ foo_open(std::out_ptr(x));
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Boost License - see the [LICENSE](LICENSE) file for details.
