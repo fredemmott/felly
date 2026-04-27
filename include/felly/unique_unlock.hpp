@@ -22,6 +22,10 @@ struct unique_unlock {
   }
 
   unique_unlock& operator=(unique_unlock&& other) noexcept {
+    if (std::addressof(other) == this) {
+      return *this;
+    }
+
     if (mLock) {
       mLock->lock();
     }
