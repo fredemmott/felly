@@ -308,6 +308,10 @@ using unique_fd = felly::basic_unique_any<unique_fd_traits>;
 
 This behaves identically to `unique_any<const int, &close, [](const int fd) { return fd >= 0; }>` above, but it is more efficient as it just stores an `int`, instead of an `std::optional<const int>`.
 
+#### felly::out_any
+
+Like `std::out_ptr`, but for `unique_any` types. It allows passing a `unique_any` to a function that expects a `T*` output parameter; this class is useful for interoperability with C APIs.
+
 ---
 
 ### felly::unique_ptr

@@ -235,6 +235,7 @@ concept unique_any_traits =
  */
 template <unique_any_traits TTraits>
 struct basic_unique_any {
+  using traits_type = TTraits;
   using value_type = TTraits::value_type;
   using storage_type = TTraits::storage_type;
 
@@ -426,5 +427,35 @@ template <
   requires felly_detail::nullptr_or_predicate<decltype(TPredicate), const T&>
 using unique_any =
   basic_unique_any<unique_any_default_traits<T, TDeleter, TPredicate>>;
+
+template <class T>
+struct out_any {
+ public:
+  using traits_type = typename T::traits_type;
+  using storage_type = typename traits_type::storage_type;
+  using value_type = typename traits_type::value_type;
+
+  out_any() = delete;
+  explicit out_any(T& any) : mAny(any) { mAny.reset(); }
+
+  out_any(const out_any&) = delete;
+  out_any(out_any&&) = delete;
+  out_any& operator=(const out_any&) = delete;
+  out_any& operator=(out_any&&) = delete;
+
+  ~out_any() { mAny.reset(std::move(mValue)); }
+
+  operator value_type*() noexcept { return std::addressof(mValue); }
+
+  operator void**() noexcept
+    requires std::is_pointer_v<value_type>
+  {
+    return reinterpret_cast<void**>(std::addressof(mValue));
+  }
+
+ private:
+  T& mAny;
+  value_type mValue {};
+};
 
 }// namespace felly::inline unique_any_types

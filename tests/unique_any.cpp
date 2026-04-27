@@ -334,6 +334,21 @@ TEMPLATE_TEST_CASE(
     STATIC_CHECK(std::is_reference_v<U>);
     STATIC_CHECK(std::is_const_v<std::remove_reference_t<U>>);
   }
+
+  SECTION("out_any") {
+    Tracker::reset();
+    static constexpr auto SetterValue = __LINE__;
+    static constexpr auto SetPtr = [](int* value) { *value = SetterValue; };
+    {
+      static constexpr auto InitialValue = __LINE__;
+      felly::unique_any<int, &Tracker::track> v {InitialValue};
+      SetPtr(felly::out_any(v));
+      CHECK(Tracker::call_count == 1);
+      CHECK(Tracker::last_value == InitialValue);
+    }
+    CHECK(Tracker::call_count == 2);
+    CHECK(Tracker::last_value == SetterValue);
+  }
 }
 
 TEST_CASE("unique_any - standard pointers") {
@@ -386,6 +401,78 @@ TEST_CASE("unique_any - standard pointers") {
     Tracker::reset();
     CHECK(test_type {nullptr} == nullptr);
     CHECK(test_type {new WithTrackedDestructor()} != nullptr);
+  }
+
+  SECTION("out_any with typed pointer pointer") {
+    static constexpr auto Value = __LINE__;
+
+    static int lastValue {};
+    static bool deletedNull;
+    static bool deletedValid;
+
+    lastValue = 0;
+    deletedNull = false;
+    deletedValid = false;
+
+    static constexpr auto SetPtr = [](int** value) {
+      *value = new int {Value};
+    };
+    {
+      felly::unique_any<
+        int*,
+        [](int* const p) {
+          if (p) {
+            lastValue = *p;
+            deletedValid = true;
+          } else {
+            deletedNull = true;
+          }
+          delete p;
+        }>
+        v {nullptr};
+      SetPtr(felly::out_any(v));
+      CHECK(*v.get() == Value);
+      CHECK(lastValue == 0);
+    }
+    CHECK(lastValue == Value);
+    CHECK_FALSE(deletedNull);
+    CHECK(deletedValid);
+  }
+
+  SECTION("out_any with void**") {
+    static constexpr auto Value = __LINE__;
+
+    static int lastValue {};
+    static bool deletedNull;
+    static bool deletedValid;
+
+    lastValue = 0;
+    deletedNull = false;
+    deletedValid = false;
+
+    static constexpr auto SetPtr = [](void** value) {
+      *reinterpret_cast<int**>(value) = new int {Value};
+    };
+    {
+      felly::unique_any<
+        int*,
+        [](int* const p) {
+          if (p) {
+            lastValue = *p;
+            deletedValid = true;
+          } else {
+            deletedNull = true;
+          }
+          delete p;
+        }>
+        v {nullptr};
+      SetPtr(felly::out_any(v));
+      CHECK(*v.get() == Value);
+      CHECK(lastValue == 0);
+    }
+    CHECK(lastValue == Value);
+    CHECK_FALSE(deletedNull);
+    CHECK(deletedValid);
   }
 }
 
