@@ -12,6 +12,7 @@ add_executable(
   scope_exit.cpp
   unique_any.cpp
   unique_ptr.cpp
+  unique_unlock.cpp
   version.cpp
 )
 target_link_libraries(tests PRIVATE Catch2::Catch2WithMain felly)

@@ -15,6 +15,7 @@ add_library(
   include/felly/scope_exit.hpp
   include/felly/unique_any.hpp
   include/felly/unique_ptr.hpp
+  include/felly/unique_unlock.hpp
   include/felly/version.hpp
 )
 target_include_directories(
