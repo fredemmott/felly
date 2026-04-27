@@ -39,10 +39,12 @@ TEST_CASE("unique_unlock") {
   CHECK(lock.owns_lock());
 
   SECTION("move-assign over valid lock") {
-    felly::unique_unlock a {lock};
     std::mutex mutexB;
     std::unique_lock lockB {mutexB};
+
+    felly::unique_unlock a {lock};
     felly::unique_unlock b {lockB};
+
     a = std::move(b);
     CHECK(lock.owns_lock());
     CHECK_FALSE(lockB.owns_lock());
