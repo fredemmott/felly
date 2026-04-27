@@ -203,6 +203,8 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
     CHECK_FALSE(success);
   }
 
+  // This also guards std::stop_source availabilityt
+#ifdef __cpp_lib_jthread
   SECTION("std::condition_variable_any compatibility") {
     guarded_data<int> data(0);
     std::condition_variable_any cv;
@@ -249,4 +251,5 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
     }
     CHECK(notified);
   }
+#endif
 }
