@@ -78,6 +78,7 @@ felly::guarded_data<std::string> protected_str("Hello");
 * **Manual Unlocking**: Supports a `.unlock()` method on the guard to release the mutex early.
 * **Const Correctness**: Provides `lock() const` which returns a guard for `const T&`, preventing mutation of shared data in read-only contexts.
 * **Deadlocks**: Standard mutex rules apply; nesting multiple `guarded_data` locks requires careful ordering.
+* **Condition Variables**: the underlying lock is private; you can pass a `condition_variable` or similar to `wait()`, `wait_for()`, or `wait_until()`.
 
 **Differences with Alternatives**
 

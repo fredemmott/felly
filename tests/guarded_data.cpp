@@ -1,6 +1,7 @@
 // Copyright 2026 Fred Emmott<fred @fredemmott.com>
 // SPDX-License-Identifier: BSL-1.0
 #include <catch2/catch_test_macros.hpp>
+#include <condition_variable>
 #include <string>
 #include <thread>
 #include <vector>
@@ -112,5 +113,125 @@ TEST_CASE("guarded_data move semantics", "[guarded_data]") {
     CHECK(!lock1);
     auto lock3 = std::move(lock1);
     CHECK(!lock3);
+  }
+}
+
+TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
+  using namespace std::chrono_literals;
+
+  SECTION("wait with predicate") {
+    guarded_data<bool> ready(false);
+    std::condition_variable cv;
+
+    auto lock = ready.lock();
+
+    std::jthread t([&] {
+      auto lock = ready.lock();
+      *lock = true;
+      cv.notify_one();
+    });
+
+    lock.wait(cv, [&] { return *lock; });
+    CHECK(*lock);
+  }
+
+  SECTION("wait_for with predicate - success") {
+    guarded_data<bool> ready(false);
+    std::condition_variable cv;
+
+    auto lock = ready.lock();
+
+    std::jthread t {[&] {
+      auto lock = ready.lock();
+      *lock = true;
+      cv.notify_one();
+    }};
+
+    const bool success = lock.wait_for(cv, 100ms, [&] { return *lock; });
+    CHECK(success);
+    CHECK(*lock);
+  }
+
+  SECTION("wait_for with predicate - failure") {
+    guarded_data<bool> ready(false);
+    std::condition_variable cv;
+
+    auto lock = ready.lock();
+    const bool success = lock.wait_for(cv, 1ms, [&] { return *lock; });
+    CHECK_FALSE(success);
+    CHECK_FALSE(*lock);
+  }
+
+  SECTION("wait_until with predicate - success") {
+    guarded_data<bool> ready(false);
+    std::condition_variable cv;
+
+    auto lock = ready.lock();
+    std::jthread j {[&] {
+      auto lock = ready.lock();
+      *lock = true;
+      cv.notify_one();
+    }};
+
+    auto timeout = std::chrono::system_clock::now() + 100ms;
+    const bool success = lock.wait_until(cv, timeout, [&] { return *lock; });
+    CHECK(success);
+  }
+
+  SECTION("wait_until with predicate - failure") {
+    guarded_data<bool> ready(false);
+    std::condition_variable cv;
+
+    auto lock = ready.lock();
+    auto timeout = std::chrono::system_clock::now() + 1ms;
+    bool success = lock.wait_until(cv, timeout, [&] { return *lock; });
+    CHECK_FALSE(success);
+  }
+
+  SECTION("std::condition_variable_any compatibility") {
+    guarded_data<int> data(0);
+    std::condition_variable_any cv;
+    std::stop_source ss;
+
+    std::jthread t([&] {
+      std::this_thread::sleep_for(10ms);
+      auto lock = data.lock();
+      *lock = 42;
+      cv.notify_one();
+    });
+
+    auto lock = data.lock();
+    // Using the overload that returns bool via stop_token
+    bool notified = lock.wait(cv, ss.get_token(), [&] { return *lock == 42; });
+
+    CHECK(notified);
+    CHECK(*lock == 42);
+  }
+
+  SECTION("stop_token interruption") {
+    guarded_data<bool> ready(false);
+    std::condition_variable_any cv;
+    std::stop_source ss;
+    bool notified = false;
+
+    {
+      std::jthread waiter(
+        [&notified, &ready, &cv](std::stop_token st) {
+          auto lock = ready.lock();
+          // This should return false when ss.request_stop() is called
+          const bool result = lock.wait(cv, st, [&] { return *lock == true; });
+          // In this test, we expect it to return false because of the stop
+          // request
+          CHECK_FALSE(result);
+          CHECK(st.stop_requested());
+          notified = true;
+        },
+        ss.get_token());
+
+      // Give the thread a moment to start waiting
+      std::this_thread::sleep_for(100ms);
+      ss.request_stop();
+    }
+    CHECK(notified);
   }
 }

@@ -67,6 +67,27 @@ struct unique_guarded_data_lock {
     mLock.unlock();
   }
 
+  // This will usually return void, in which case the `[[nodiscard]]` is
+  // typically ignored by compilers. However, `std::condition_variable_any()`
+  // has an overload which returns a bool
+  template <class... Args>
+  [[nodiscard]]
+  auto wait(auto& cv, Args&&... args) {
+    return cv.wait(mLock, std::forward<Args>(args)...);
+  }
+
+  template <class... Args>
+  [[nodiscard]]
+  auto wait_for(auto& cv, Args&&... args) {
+    return cv.wait_for(mLock, std::forward<Args>(args)...);
+  }
+
+  template <class... Args>
+  [[nodiscard]]
+  auto wait_until(auto& cv, Args&&... args) {
+    return cv.wait_until(mLock, std::forward<Args>(args)...);
+  }
+
  private:
   std::unique_lock<std::mutex> mLock;
   T* mData;
