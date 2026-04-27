@@ -10,6 +10,20 @@
 
 using namespace felly::guarded_data_types;
 
+// As of 2026-04-27, macOS's default standard library does not
+// include `std::jthread`, at least with the versions on the GitHub Actions
+// `macos-latest` runners.
+//
+// Minimal incomplete polyfill
+struct jthread : std::thread {
+  using std::thread::thread;
+  ~jthread() {
+    if (joinable()) {
+      join();
+    }
+  }
+};
+
 TEST_CASE("guarded_data basic usage", "[guarded_data]") {
   SECTION("Initializes and allows access to data") {
     guarded_data<std::string> guarded("Hello World");
@@ -125,7 +139,7 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
 
     auto lock = ready.lock();
 
-    std::jthread t([&] {
+    jthread t([&] {
       auto lock = ready.lock();
       *lock = true;
       cv.notify_one();
@@ -141,7 +155,7 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
 
     auto lock = ready.lock();
 
-    std::jthread t {[&] {
+    jthread t {[&] {
       auto lock = ready.lock();
       *lock = true;
       cv.notify_one();
@@ -167,7 +181,7 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
     std::condition_variable cv;
 
     auto lock = ready.lock();
-    std::jthread j {[&] {
+    jthread j {[&] {
       auto lock = ready.lock();
       *lock = true;
       cv.notify_one();
@@ -193,7 +207,7 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
     std::condition_variable_any cv;
     std::stop_source ss;
 
-    std::jthread t([&] {
+    jthread t([&] {
       std::this_thread::sleep_for(10ms);
       auto lock = data.lock();
       *lock = 42;
@@ -215,7 +229,7 @@ TEST_CASE("guarded_data with condition_variable", "[guarded_data]") {
     bool notified = false;
 
     {
-      std::jthread waiter(
+      jthread waiter(
         [&notified, &ready, &cv](std::stop_token st) {
           auto lock = ready.lock();
           // This should return false when ss.request_stop() is called
