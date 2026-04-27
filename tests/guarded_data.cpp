@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSL-1.0
 #include <catch2/catch_test_macros.hpp>
 #include <condition_variable>
+#include <stop_token>
 #include <string>
 #include <thread>
 #include <vector>
