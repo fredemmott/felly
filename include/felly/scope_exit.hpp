@@ -10,7 +10,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace felly::detail {
+namespace felly_detail {
 
 struct empty {};
 
@@ -71,27 +71,29 @@ class [[nodiscard]] basic_scope_exit {
 
   void release() noexcept { mOwned = false; }
 };
-}// namespace felly::detail
+}// namespace felly_detail
 
 namespace felly::inline scope_exit_types {
 template <std::invocable<> T>
-struct scope_exit
-  : detail::
-      basic_scope_exit<detail::basic_scope_exit_execution_policy::Always, T> {};
+struct scope_exit : felly_detail::basic_scope_exit<
+                      felly_detail::basic_scope_exit_execution_policy::Always,
+                      T> {};
 template <class T>
 scope_exit(T) -> scope_exit<T>;
 
 template <std::invocable<> T>
-struct scope_fail : detail::basic_scope_exit<
-                      detail::basic_scope_exit_execution_policy::OnFailure,
-                      T> {};
+struct scope_fail
+  : felly_detail::basic_scope_exit<
+      felly_detail::basic_scope_exit_execution_policy::OnFailure,
+      T> {};
 template <class T>
 scope_fail(T) -> scope_fail<T>;
 
 template <class T = std::function<void()>>
-struct scope_success : detail::basic_scope_exit<
-                         detail::basic_scope_exit_execution_policy::OnSuccess,
-                         T> {};
+struct scope_success
+  : felly_detail::basic_scope_exit<
+      felly_detail::basic_scope_exit_execution_policy::OnSuccess,
+      T> {};
 template <class T>
 scope_success(T) -> scope_success<T>;
 }// namespace felly::inline scope_exit_types
