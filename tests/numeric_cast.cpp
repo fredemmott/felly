@@ -93,6 +93,12 @@ TEST_CASE(
     CHECK(numeric_cast<int32_t>(static_cast<double>(Max)) == Max);
   }
 
+  SECTION("negative float to unsigned") {
+    CHECK_THROWS_AS(
+      numeric_cast<uint32_t>(-std::numeric_limits<float>::epsilon()),
+      numeric_cast_range_error);
+  }
+
   SECTION("Out of range: precision loss at limit") {
     constexpr auto Max = std::numeric_limits<uint32_t>::max();
     // float(0xffffffff) is larger than 0xffffffff
@@ -101,6 +107,15 @@ TEST_CASE(
     CHECK_THROWS_AS(
       numeric_cast<uint32_t>(static_cast<float>(Max)),
       numeric_cast_range_error);
+  }
+
+  SECTION("Out of range: precision loss at signed limit") {
+    constexpr auto Max = std::numeric_limits<int32_t>::max();
+    // float(2147483647) rounds up to 2147483648.0f
+    CHECK(
+      static_cast<double>(Max) < static_cast<double>(static_cast<float>(Max)));
+    CHECK_THROWS_AS(
+      numeric_cast<int32_t>(static_cast<float>(Max)), numeric_cast_range_error);
   }
 
   SECTION("Out of range: Positive overflow") {
@@ -113,6 +128,15 @@ TEST_CASE(
     constexpr auto TooLow =
       static_cast<double>(std::numeric_limits<int>::lowest()) - 1;
     CHECK_THROWS_AS(numeric_cast<int>(TooLow), numeric_cast_range_error);
+  }
+
+  SECTION("Infinities") {
+    CHECK_THROWS_AS(
+      numeric_cast<int>(std::numeric_limits<float>::infinity()),
+      numeric_cast_range_error);
+    CHECK_THROWS_AS(
+      numeric_cast<int>(-std::numeric_limits<float>::infinity()),
+      numeric_cast_range_error);
   }
 
   SECTION("Type check") {
