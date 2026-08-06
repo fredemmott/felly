@@ -23,6 +23,10 @@ jobs:
             cxx_compiler: g++-14
           - os: windows-latest
             cxx_compiler: clang++
+          - os: windows-2022
+            cxx_compiler: g++-14
+          - os: windows-2022
+            cxx_compiler: clang++
           - os: ubuntu-latest
             cxx_compiler: cl
           - os: ubuntu-latest
