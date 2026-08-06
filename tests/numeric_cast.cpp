@@ -179,6 +179,13 @@ TEST_CASE(
 
 #ifdef __STDCPP_FLOAT16_T__
   SECTION("out of bounds") {
+    // This has only been tested on x86_64 without AVX512 native FP16 extensions
+    //
+    // I do not currently have any environments I can test on with native
+    // support for float16, including in the C++ standard library; for example,
+    // while Apple ARM systems do have native `_Float16`, the Apple C++ library
+    // does not support it for `std::is_floating_point`, `std::numeric_limits`,
+    // or other common functionality as of 2026-08-06
     CHECK(numeric_cast<std::float16_t>(static_cast<uint32_t>(1)) == 1.0f);
     STATIC_CHECK(std::numeric_limits<std::float16_t>::max() == 65504.0f);
     CHECK(numeric_cast<std::float16_t>(65504) == 65504.0f);
