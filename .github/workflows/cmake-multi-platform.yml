@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
 
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, windows-2022, macos-latest]
         build_type: [Debug, RelWithDebInfo]
         cxx_compiler: [g++-14, clang++, cl, clang-cl]
         exclude:
@@ -35,6 +35,11 @@ jobs:
             cxx_compiler: clang-cl
         include:
           - os: windows-latest
+            cxx_compiler: cl
+            build_type: Debug
+            cmake_extra_args: -DVCPKG_TARGET_TRIPLET=x64-windows-asan -DCMAKE_CXX_FLAGS=/fsanitize=address
+            name_append: (ASAN)
+          - os: windows-2022
             cxx_compiler: cl
             build_type: Debug
             cmake_extra_args: -DVCPKG_TARGET_TRIPLET=x64-windows-asan -DCMAKE_CXX_FLAGS=/fsanitize=address
