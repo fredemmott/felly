@@ -114,6 +114,14 @@ TEST_CASE(
       = static_cast<double>(std::numeric_limits<int>::lowest()) - 1;
     CHECK_THROWS_AS(numeric_cast<int>(TooLow), numeric_cast_range_error);
   }
+
+  SECTION("Type check") {
+    constexpr auto lambda = [](const float v) {
+      return numeric_cast<uint64_t>(v);
+    };
+    constexpr auto value = lambda(123.0f);
+    CHECK(value == 123);
+  }
 }
 
 TEST_CASE(
@@ -125,4 +133,12 @@ TEST_CASE(
 
   constexpr auto Low = std::numeric_limits<int32_t>::lowest();
   CHECK(numeric_cast<float>(Low) == Low);
+
+  SECTION("Type check") {
+    constexpr auto lambda = [](const uint64_t v) {
+      return numeric_cast<float>(v);
+    };
+    constexpr auto value = lambda(123);
+    CHECK(value == 123.0f);
+  }
 }
