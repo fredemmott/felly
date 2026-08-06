@@ -69,6 +69,14 @@ TEST_CASE(
     CHECK_THROWS_AS(numeric_cast<float>(TooLow), numeric_cast_range_error);
     CHECK_THROWS_AS(numeric_cast<float>(TooHigh), numeric_cast_range_error);
   }
+
+  SECTION("Identity type check") {
+    constexpr auto lambda = [](const float v) {
+      return felly::numeric_cast<float>(v);
+    };
+    constexpr auto result = lambda(123.0f);
+    CHECK(result == 123.0f);
+  }
 }
 
 TEST_CASE(

@@ -80,7 +80,7 @@ constexpr T numeric_cast(const std::integral auto v) {
 template <std::floating_point T, std::floating_point U>
 [[nodiscard]]
 constexpr T numeric_cast(const U u) {
-  if (std::isnan(u)) {
+  if (felly_detail::isnan(u)) {
     return static_cast<T>(u);
   }
 
