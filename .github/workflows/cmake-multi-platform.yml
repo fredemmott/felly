@@ -3,6 +3,7 @@ name: CMake on multiple platforms
 on:
   push:
     branches: [ "master" ]
+  workflow_dispatch:
 permissions:
   packages: write
 jobs:
