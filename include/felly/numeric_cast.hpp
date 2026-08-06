@@ -23,6 +23,10 @@ struct float_traits {
 template <std::size_t>
 struct sized_uint;
 template <>
+struct sized_uint<2> {
+  using type = uint16_t;
+};
+template <>
 struct sized_uint<4> {
   using type = uint32_t;
 };
@@ -137,7 +141,7 @@ constexpr T numeric_cast(const U u) {
       - 1;
     constexpr V exponent = std::numeric_limits<T>::digits + bias;
     return std::bit_cast<U>(
-      exponent << felly_detail::float_traits<U>::mantissa_bits);
+      static_cast<V>(exponent << felly_detail::float_traits<U>::mantissa_bits));
   }();
 
   if (u < Lowest || u >= TooHigh) [[unlikely]] {

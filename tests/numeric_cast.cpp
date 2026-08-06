@@ -7,6 +7,10 @@
 
 #include <limits>
 
+#if __has_include(<stdfloat>)
+#include <stdfloat>
+#endif
+
 using namespace felly;
 
 TEST_CASE("numeric_cast: Integral to Integral", "[numeric_cast][integral]") {
@@ -172,4 +176,23 @@ TEST_CASE(
     constexpr auto value = lambda(123);
     CHECK(value == 123.0f);
   }
+
+#ifdef __STDCPP_FLOAT16_T__
+  SECTION("out of bounds") {
+    CHECK(numeric_cast<std::float16_t>(static_cast<uint32_t>(1)) == 1.0f);
+    STATIC_CHECK(std::numeric_limits<std::float16_t>::max() == 65504.0f);
+    CHECK(numeric_cast<std::float16_t>(65504) == 65504.0f);
+    CHECK_THROWS_AS(
+      numeric_cast<std::float16_t>(static_cast<uint32_t>(65505)),
+      numeric_cast_range_error);
+    CHECK(
+      numeric_cast<std::float16_t>(static_cast<int32_t>(-65504)) == -65504.0f);
+    CHECK_THROWS_AS(
+      numeric_cast<std::float16_t>(static_cast<int32_t>(-65505)),
+      numeric_cast_range_error);
+    CHECK_THROWS_AS(
+      numeric_cast<std::float16_t>(static_cast<int32_t>(65512)),
+      numeric_cast_range_error);
+  }
+#endif
 }
